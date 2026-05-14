@@ -80,44 +80,48 @@ final class FrameSender {
             let dataOffset = seq * NetworkConfig.maxPayload
             let payloadSize = min(NetworkConfig.maxPayload, frameSize - dataOffset)
 
-            // Construct 32-byte header
+            // Construct header (must match TlnkFrameHeader in common/frame_header.h).
+            //   0  u32  magic
+            //   4  u64  frame_id
+            //  12  u32  packet_seq
+            //  16  u32  total_packets
+            //  20  u32  payload_size
+            //  24  u32  width
+            //  28  u32  height
+            //  32  u16  format
+            //  34  u16  flags
+            //  36  end
+            precondition(NetworkConfig.headerSize == 36)
             var header = Data(count: NetworkConfig.headerSize)
             header.withUnsafeMutableBytes { buf in
                 let ptr = buf.baseAddress!
 
-                // magic (4 bytes)
                 var magic = NetworkConfig.magic.littleEndian
                 memcpy(ptr, &magic, 4)
 
-                // frame_id (8 bytes)
                 var fid = currentFrameID.littleEndian
                 memcpy(ptr + 4, &fid, 8)
 
-                // packet_seq (4 bytes)
                 var pseq = UInt32(seq).littleEndian
                 memcpy(ptr + 12, &pseq, 4)
 
-                // total_packets (4 bytes)
                 var total = UInt32(totalPackets).littleEndian
                 memcpy(ptr + 16, &total, 4)
 
-                // payload_size (4 bytes)
                 var psize = UInt32(payloadSize).littleEndian
                 memcpy(ptr + 20, &psize, 4)
 
-                // width (4 bytes)
                 var w = UInt32(width).littleEndian
                 memcpy(ptr + 24, &w, 4)
 
-                // height (4 bytes)
                 var h = UInt32(height).littleEndian
                 memcpy(ptr + 28, &h, 4)
 
-                // format (2 bytes)
                 var fmt = NetworkConfig.formatBGRA32.littleEndian
-                memcpy(ptr + 32 - 4, &fmt, 2)
+                memcpy(ptr + 32, &fmt, 2)
 
-                // flags (2 bytes) - already zero
+                var flags: UInt16 = 0
+                memcpy(ptr + 34, &flags, 2)
             }
 
             // Calculate source pointer accounting for bytesPerRow padding

@@ -1,0 +1,46 @@
+# ── Swift Package Manager (mac_sender) ──
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj
+*.xcworkspace
+
+# ── CMake / MSVC (windows_receiver) ──
+build/
+out/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.lib
+*.exp
+*.dll
+*.cso
+
+# Visual Studio
+.vs/
+*.vcxproj.user
+*.sln.docstates
+
+# ── Editors / IDEs ──
+.idea/
+.vscode/
+*.swp
+*~
+
+# ── macOS ──
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# ── Windows ──
+Thumbs.db
+Desktop.ini
+
+# ── Logs / scratch ──
+*.log

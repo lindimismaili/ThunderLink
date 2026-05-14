@@ -98,7 +98,8 @@ final class InputInjector {
                                    units: .pixel,
                                    wheelCount: 2,
                                    wheel1: deltaY,
-                                   wheel2: deltaX) else { return }
+                                   wheel2: deltaX,
+                                   wheel3: 0) else { return }
         event.post(tap: .cghidEventTap)
     }
 }

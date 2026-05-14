@@ -10,7 +10,8 @@ enum NetworkConfig {
     static let controlPort: UInt16 = 50003 // TCP
 
     static let mtu = 9000
-    static let headerSize = 32
+    // Must match TLNK_HEADER_SIZE in common/protocol.h and sizeof(TlnkFrameHeader).
+    static let headerSize = 36
     static let maxPayload = 8192
 
     static let magic: UInt32 = 0x544C4E4B  // "TLNK"

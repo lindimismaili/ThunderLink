@@ -152,7 +152,9 @@ final class InputReceiver {
     private func readExact(_ sock: Int32, buffer: inout [UInt8], count: Int) -> Bool {
         var received = 0
         while received < count {
-            let r = recv(sock, &buffer + received, count - received, 0)
+            let r = buffer.withUnsafeMutableBufferPointer { buf -> Int in
+                recv(sock, buf.baseAddress!.advanced(by: received), count - received, 0)
+            }
             if r <= 0 { return false }
             received += r
         }

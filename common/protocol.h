@@ -20,7 +20,7 @@
 
 /* Packet limits */
 #define TLNK_MTU            9000    /* Jumbo frames */
-#define TLNK_HEADER_SIZE    32
+#define TLNK_HEADER_SIZE    36      /* sizeof(TlnkFrameHeader); enforced by _Static_assert */
 #define TLNK_MAX_PAYLOAD    8192    /* Payload per UDP packet */
 
 /* Socket buffer sizes */
