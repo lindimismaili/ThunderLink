@@ -9,3 +9,22 @@
 [04:22:28.620] [INFO] DisplayManager.swift:13 - DisplayManager: found 1 display(s)
 [04:22:28.620] [INFO] DisplayManager.swift:15 -   [0] 2056x1329 (ID: 1)
 [04:22:59.084] [INFO] InputReceiver.swift:111 - InputReceiver: Windows connected
+
+===== ThunderLink Mac session start: 04:53:51.761 =====
+[04:53:51.765] [INFO] main.swift:15 - ThunderLinkSender config: peer=169.254.1.2 bind=169.254.1.1 codec=hevc bitrate=25Mbps
+[04:53:51.824] [INFO] AppDelegate.swift:29 - ThunderLinkSender starting
+[04:53:51.824] [INFO] LinkSetup.swift:29 - LinkSetup: 169.254.1.1 already assigned; nothing to do
+[04:53:51.837] [INFO] InputInjector.swift:23 - InputInjector: Accessibility permission granted
+[04:53:51.837] [INFO] InputReceiver.swift:78 - InputReceiver: listening on 169.254.1.1:50002
+[04:53:51.837] [INFO] FrameSender.swift:52 - FrameSender: ready to send to 169.254.1.2:50001
+[04:53:51.860] [INFO] DisplayManager.swift:13 - DisplayManager: found 1 display(s)
+[04:53:51.860] [INFO] DisplayManager.swift:15 -   [0] 2056x1329 (ID: 1)
+[04:53:53.764] [INFO] InputReceiver.swift:111 - InputReceiver: Windows connected
+[04:53:53.863] [INFO] ControlClient.swift:106 - ControlClient: connected to 169.254.1.2:50003
+[04:53:53.865] [INFO] ControlClient.swift:147 - ControlClient: CONFIGURE 2560x1440 @ 60 fps, codec=hevc, 25000 kbps
+[04:53:53.967] [INFO] VideoEncoder.swift:71 - VideoEncoder: ready 2560x1440 @ 60 fps, codec=hevc, 25000 kbps
+[04:53:53.969] [INFO] ScreenCapture.swift:65 - ScreenCapture: stopped
+[04:53:54.090] [INFO] ScreenCapture.swift:54 - ScreenCapture: started 2560x1440 @ 60 fps (NV12)
+[04:54:45.665] [INFO] InputReceiver.swift:119 - InputReceiver: Windows disconnected
+[04:54:45.665] [INFO] ControlClient.swift:188 - ControlClient: received STOP/BYE
+[04:54:45.676] [INFO] ScreenCapture.swift:65 - ScreenCapture: stopped
