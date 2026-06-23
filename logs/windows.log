@@ -1,0 +1,74 @@
+
+===== ThunderLink Windows session start =====
+[04:22:51.637] [INFO ] main.cpp:116 - ThunderLink Receiver starting up
+[04:22:51.637] [INFO ] main.cpp:126 - Config: bind=0.0.0.0 peer=169.254.1.1 ports(v/i/c)=50001/50002/50003 2560x1440@60 codec=HEVC 25000kbps
+[04:22:51.667] [INFO ] Window.cpp:73 - Window: created 1280x720
+[04:22:51.668] [INFO ] D3D12Renderer.cpp:143 - D3D12Renderer: debug layer enabled
+[04:22:51.832] [INFO ] D3D12Renderer.cpp:172 - D3D12Renderer: using adapter 'NVIDIA GeForce RTX 3060'
+[04:22:51.866] [INFO ] SwapChain.cpp:26 - SwapChain: tearing support = yes
+[04:22:51.870] [INFO ] SwapChain.cpp:89 - SwapChain: initialized 1280x720, 3 buffers
+[04:22:51.875] [INFO ] TextureManager.cpp:146 - TextureManager: created 3 upload buffers, 12441600 bytes each
+[04:22:51.876] [INFO ] TextureManager.cpp:38 - TextureManager: initialized (NV12), max 3840x2160
+[04:22:51.877] [INFO ] D3D12Renderer.cpp:260 - D3D12Renderer: loaded pre-compiled shaders
+[04:22:51.878] [INFO ] D3D12Renderer.cpp:392 - D3D12Renderer: root signature and PSO created
+[04:22:51.879] [INFO ] D3D12Renderer.cpp:80 - D3D12Renderer: ImGui overlay initialized
+[04:22:51.879] [INFO ] D3D12Renderer.cpp:51 - D3D12Renderer: initialized successfully
+[04:22:51.911] [INFO ] FrameBuffer.cpp:21 - FrameBuffer: allocated 4 slots, 33177600 bytes each (126.6 MB total)
+[04:22:51.912] [INFO ] NetworkManager.cpp:44 - NetworkManager: listening on 0.0.0.0:50003
+[04:22:51.912] [INFO ] NetworkManager.cpp:97 - NetworkManager: control thread started
+[04:22:51.912] [INFO ] FrameReceiver.cpp:44 - FrameReceiver: listening on 0.0.0.0:50001 (UDP)
+[04:22:51.912] [INFO ] InputCapture.cpp:43 - InputCapture: RawInput registered
+[04:22:51.912] [INFO ] FrameReceiver.cpp:66 - FrameReceiver: receive thread started
+[04:22:51.912] [INFO ] InputSender.cpp:81 - InputSender: send thread started
+[04:22:51.913] [INFO ] Application.cpp:109 - Application: all subsystems initialized, waiting for Mac connection...
+[04:22:51.913] [INFO ] main.cpp:138 - Application initialized successfully
+[04:22:51.913] [INFO ] Application.cpp:114 - Application: entering main loop
+[04:22:52.880] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:22:54.136] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:22:55.136] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:22:56.136] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:22:57.136] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:22:58.137] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:22:58.951] [INFO ] InputSender.cpp:75 - InputSender: connected to 169.254.1.1:50002
+[04:22:59.137] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:00.138] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:01.138] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:02.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:03.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:04.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:05.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:06.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:07.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:08.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:09.139] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:10.140] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:11.140] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:12.140] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:13.140] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:14.140] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:15.140] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:16.140] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:17.141] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:18.141] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:19.141] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:20.141] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:21.142] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:22.142] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:23.143] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:24.143] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:25.143] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:26.143] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:27.144] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:28.144] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:29.144] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:30.144] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:30.772] [WARN ] InputSender.cpp:110 - InputSender: send failed, disconnecting
+[04:23:31.144] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:32.144] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[04:23:32.394] [INFO ] Application.cpp:158 - Application: main loop exited
+[04:23:32.394] [INFO ] Application.cpp:163 - Application: shutting down
+[04:23:33.409] [INFO ] InputSender.cpp:117 - InputSender: send thread exiting
+[04:23:33.410] [INFO ] FrameReceiver.cpp:126 - FrameReceiver: receive thread exiting
+[04:23:33.411] [INFO ] NetworkManager.cpp:131 - NetworkManager: control thread exiting
+[04:23:33.467] [INFO ] Application.cpp:197 - Application: shutdown complete
+[04:23:33.467] [INFO ] main.cpp:150 - ThunderLink Receiver shutting down
