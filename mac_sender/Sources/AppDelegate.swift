@@ -136,12 +136,18 @@ extension AppDelegate: ControlClientDelegate {
         var capW: Int
         var capH: Int
         if captureMain {
-            if requestedWidth > 0 && requestedHeight > 0 {
-                // Best-effort: switch the display to a matching native mode (helps
-                // external monitors that actually have that mode). Regardless of
-                // whether the switch happens, capture at the REQUESTED size —
-                // ScreenCaptureKit scales the display to it — so the stream
-                // resolution always changes to what was picked.
+            if requestedWidth == 0 && requestedHeight > 0 {
+                // Aspect-correct: derive width from the Mac's native display aspect
+                // for the requested height, so the stream matches the Mac's shape
+                // (no distortion, no ScreenCaptureKit letterbox, accurate cursor).
+                // The display itself stays native; we just scale the capture.
+                DisplayController.restore()
+                let (nativeW, nativeH) = DisplayController.mainPointSize()
+                let aspect = Double(nativeW) / Double(max(nativeH, 1))
+                capH = requestedHeight & ~1
+                capW = Int((Double(capH) * aspect).rounded()) & ~1
+            } else if requestedWidth > 0 && requestedHeight > 0 {
+                // Explicit WxH: best-effort display switch, capture at that size.
                 DisplayController.apply(requestedWidth: requestedWidth,
                                         requestedHeight: requestedHeight)
                 capW = requestedWidth & ~1
