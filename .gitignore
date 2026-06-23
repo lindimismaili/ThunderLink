@@ -28,7 +28,6 @@ CMakeUserPresets.json
 
 # ── Editors / IDEs ──
 .idea/
-.vscode/
 *.swp
 *~
 

@@ -1,0 +1,71 @@
+{
+    // ThunderLink dev tasks.
+    //   * "Windows: Dev (Build & Run Receiver)"  — run on the Windows PC
+    //   * "Mac: Dev (Build & Run Sender)"         — run on the Mac
+    // Run with: Terminal > Run Task...  (or Ctrl/Cmd+Shift+B for the default build).
+    // Defaults target the direct USB-C->Ethernet link (169.254.1.1 Mac / 169.254.1.2 PC),
+    // so no arguments are needed. Add e.g. ["--peer","169.254.1.2"] to the args to override.
+    "version": "2.0.0",
+    "tasks": [
+        // ---------------- Windows (receiver) ----------------
+        {
+            "label": "Windows: Configure (CMake)",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-B", "build", "-S", "windows_receiver"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": [],
+            "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+        },
+        {
+            "label": "Windows: Build (CMake Debug)",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "build", "--config", "Debug"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "dependsOn": ["Windows: Configure (CMake)"],
+            "dependsOrder": "sequence",
+            "problemMatcher": ["$msCompile"],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            // Primary "Windows dev mode" task: configure -> build -> run the receiver.
+            // Runs from build/ so the renderer finds build/shaders/*.cso.
+            "label": "Windows: Dev (Build & Run Receiver)",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/Debug/ThunderLinkReceiver.exe",
+            "args": [],
+            "options": { "cwd": "${workspaceFolder}/build" },
+            "dependsOn": ["Windows: Build (CMake Debug)"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "group": "test",
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+        },
+
+        // ---------------- Mac (sender) ----------------
+        {
+            "label": "Mac: Build (SwiftPM Debug)",
+            "type": "shell",
+            "command": "swift",
+            "args": ["build"],
+            "options": { "cwd": "${workspaceFolder}/mac_sender" },
+            "problemMatcher": [],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" }
+        },
+        {
+            // Primary "Mac dev mode" task: swift run builds (debug) and launches the sender.
+            // Requires Screen Recording + Accessibility permissions for the produced binary.
+            "label": "Mac: Dev (Build & Run Sender)",
+            "type": "shell",
+            "command": "swift",
+            "args": ["run", "ThunderLinkSender"],
+            "options": { "cwd": "${workspaceFolder}/mac_sender" },
+            "problemMatcher": [],
+            "group": "test",
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+        }
+    ]
+}

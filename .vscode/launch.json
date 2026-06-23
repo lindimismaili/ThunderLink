@@ -1,0 +1,28 @@
+{
+    // Debug configurations for ThunderLink.
+    //   * "Windows: Debug Receiver" — needs the C/C++ extension (ms-vscode.cpptools)
+    //   * "Mac: Debug Sender"       — needs CodeLLDB (vadimcn.vscode-lldb) or the Swift extension
+    // Each builds first via its preLaunchTask, then launches under the debugger.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Windows: Debug Receiver",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/ThunderLinkReceiver.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/build",
+            "console": "integratedTerminal",
+            "preLaunchTask": "Windows: Build (CMake Debug)"
+        },
+        {
+            "name": "Mac: Debug Sender",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/mac_sender/.build/debug/ThunderLinkSender",
+            "args": [],
+            "cwd": "${workspaceFolder}/mac_sender",
+            "preLaunchTask": "Mac: Build (SwiftPM Debug)"
+        }
+    ]
+}
