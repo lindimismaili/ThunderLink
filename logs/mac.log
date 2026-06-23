@@ -1,0 +1,11 @@
+
+===== ThunderLink Mac session start: 04:22:28.485 =====
+[04:22:28.488] [INFO] main.swift:15 - ThunderLinkSender config: peer=169.254.1.2 bind=169.254.1.1 codec=hevc bitrate=25Mbps
+[04:22:28.581] [INFO] AppDelegate.swift:29 - ThunderLinkSender starting
+[04:22:28.581] [INFO] LinkSetup.swift:29 - LinkSetup: 169.254.1.1 already assigned; nothing to do
+[04:22:28.594] [INFO] InputInjector.swift:23 - InputInjector: Accessibility permission granted
+[04:22:28.594] [INFO] InputReceiver.swift:78 - InputReceiver: listening on 169.254.1.1:50002
+[04:22:28.594] [INFO] FrameSender.swift:52 - FrameSender: ready to send to 169.254.1.2:50001
+[04:22:28.620] [INFO] DisplayManager.swift:13 - DisplayManager: found 1 display(s)
+[04:22:28.620] [INFO] DisplayManager.swift:15 -   [0] 2056x1329 (ID: 1)
+[04:22:59.084] [INFO] InputReceiver.swift:111 - InputReceiver: Windows connected
