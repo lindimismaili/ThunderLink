@@ -130,16 +130,37 @@ extension AppDelegate: ControlClientDelegate {
     /// space are both in display POINTS, so the Windows cursor maps 1:1.
     private func restartStreaming(requestedWidth: Int, requestedHeight: Int,
                                   fps: Int, codec: TlnkCodecSwift, bitrateKbps: Int) {
-        let (capW, capH) = DisplayController.apply(requestedWidth: requestedWidth,
+        let dispIndex = NetworkConfig.captureDisplayIndex
+        let captureMain = (dispIndex == 0)
+
+        var capW: Int
+        var capH: Int
+        if captureMain {
+            // Switch/restore the MAIN display and capture at its point size.
+            (capW, capH) = DisplayController.apply(requestedWidth: requestedWidth,
                                                    requestedHeight: requestedHeight)
+        } else if let secondary = displayManager.display(at: dispIndex) {
+            // Capturing a secondary/virtual display (e.g. BetterDisplay): leave
+            // the main display alone, capture the chosen display at its native size.
+            DisplayController.restore()
+            capW = Int(secondary.width) & ~1
+            capH = Int(secondary.height) & ~1
+            logger.info("AppDelegate: capturing display #\(dispIndex) at \(capW)x\(capH)")
+        } else {
+            logger.error("AppDelegate: display #\(dispIndex) not found; using main")
+            (capW, capH) = DisplayController.apply(requestedWidth: requestedWidth,
+                                                   requestedHeight: requestedHeight)
+        }
         guard capW >= 2, capH >= 2 else {
             logger.error("AppDelegate: invalid capture size \(capW)x\(capH)")
             return
         }
 
-        // CGEvent positions are in display points; Windows sends normalized
-        // [0,1] over the video, so map against the same point size.
-        inputInjector.setScreenSize(width: capW, height: capH)
+        // CGEvent positions live in MAIN-display points (where the real cursor
+        // is). Windows sends normalized [0,1] over the video; for a mirrored
+        // virtual display that still lands on the right spot of the main screen.
+        let (screenW, screenH) = DisplayController.mainPointSize()
+        inputInjector.setScreenSize(width: screenW, height: screenH)
 
         // Fresh encoder for the (possibly new) parameters.
         videoEncoder?.stop()
@@ -175,7 +196,8 @@ extension AppDelegate: ControlClientDelegate {
         Task { @MainActor in
             await screenCapture.stopCapture()
             try? await displayManager.refreshDisplays()
-            guard let display = displayManager.mainDisplay else {
+            guard let display = displayManager.display(at: dispIndex)
+                    ?? displayManager.mainDisplay else {
                 logger.error("AppDelegate: no display available to capture")
                 return
             }

@@ -28,6 +28,10 @@ public:
     /* Set the display resolution for coordinate normalization */
     void SetWindowSize(uint32_t width, uint32_t height);
 
+    /* Set the current stream (video) resolution so the cursor is normalized
+     * against the letterboxed video rectangle, not the whole window. */
+    void SetStreamSize(uint32_t width, uint32_t height);
+
     /* Cursor confinement */
     void SetCursorConfined(bool confined);
     bool IsCursorConfined() const { return m_cursorConfined; }
@@ -57,6 +61,10 @@ private:
 
     uint32_t m_windowWidth = 1920;
     uint32_t m_windowHeight = 1080;
+
+    /* Current stream/video resolution (for letterbox-aware cursor mapping). */
+    uint32_t m_streamWidth = 0;
+    uint32_t m_streamHeight = 0;
 
     bool m_cursorConfined = false;
     bool m_hasFocus = false;

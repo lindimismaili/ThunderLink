@@ -16,6 +16,12 @@ enum NetworkConfig {
     static var autoAssignIP = true
     static let linkSubnet = "255.255.255.0"
 
+    // Which display to capture (index into DisplayManager.displays; 0 = main).
+    // Use a non-zero index to capture a BetterDisplay virtual display. When
+    // capturing a non-main display the app does NOT change the main display's
+    // mode, and input is still injected to the main display (mirror setup).
+    static var captureDisplayIndex = 0
+
     static var videoPort: UInt16 = 50001   // UDP
     static var inputPort: UInt16 = 50002   // TCP
     static var controlPort: UInt16 = 50003 // TCP
@@ -82,6 +88,7 @@ enum NetworkConfig {
             case "--peer":         if let v = nextValue() { winIP = v }
             case "--bind":         if let v = nextValue() { macIP = v }
             case "--no-auto-ip":   autoAssignIP = false
+            case "--display":      if let v = nextValue(), let d = Int(v) { captureDisplayIndex = d }
             case "--video-port":   if let v = nextValue(), let p = UInt16(v) { videoPort = p }
             case "--control-port": if let v = nextValue(), let p = UInt16(v) { controlPort = p }
             case "--input-port":   if let v = nextValue(), let p = UInt16(v) { inputPort = p }

@@ -71,6 +71,11 @@ void InputCapture::SetWindowSize(uint32_t width, uint32_t height) {
     m_windowHeight = height;
 }
 
+void InputCapture::SetStreamSize(uint32_t width, uint32_t height) {
+    m_streamWidth = width;
+    m_streamHeight = height;
+}
+
 void InputCapture::SetCursorConfined(bool confined) {
     m_cursorConfined = confined;
     if (confined && m_hasFocus) {
@@ -209,12 +214,31 @@ bool InputCapture::CurrentClientCursor(float& nx, float& ny) const {
 
     RECT rc;
     if (!GetClientRect(m_hwnd, &rc)) return false;
-    const int w = rc.right - rc.left;
-    const int h = rc.bottom - rc.top;
-    if (w <= 0 || h <= 0) return false;
+    const float clientW = static_cast<float>(rc.right - rc.left);
+    const float clientH = static_cast<float>(rc.bottom - rc.top);
+    if (clientW <= 0.0f || clientH <= 0.0f) return false;
 
-    float x = static_cast<float>(p.x) / static_cast<float>(w);
-    float y = static_cast<float>(p.y) / static_cast<float>(h);
+    /* Normalize against the letterboxed VIDEO rectangle (matches the renderer's
+     * aspect-preserving viewport), not the whole window. Without this the cursor
+     * is offset/scaled whenever there are black bars. */
+    float videoX = 0.0f, videoY = 0.0f, videoW = clientW, videoH = clientH;
+    if (m_streamWidth > 0 && m_streamHeight > 0) {
+        const float winAspect = clientW / clientH;
+        const float strAspect = static_cast<float>(m_streamWidth) /
+                                static_cast<float>(m_streamHeight);
+        if (strAspect > winAspect) {
+            videoW = clientW;
+            videoH = clientW / strAspect;
+        } else {
+            videoH = clientH;
+            videoW = clientH * strAspect;
+        }
+        videoX = (clientW - videoW) * 0.5f;
+        videoY = (clientH - videoH) * 0.5f;
+    }
+
+    float x = (static_cast<float>(p.x) - videoX) / videoW;
+    float y = (static_cast<float>(p.y) - videoY) / videoH;
     nx = x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
     ny = y < 0.0f ? 0.0f : (y > 1.0f ? 1.0f : y);
     return true;
