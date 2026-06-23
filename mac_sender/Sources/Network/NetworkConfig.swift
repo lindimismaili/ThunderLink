@@ -11,6 +11,11 @@ enum NetworkConfig {
     static var macIP = "169.254.1.1"   // our bind address
     static var winIP = "169.254.1.2"   // peer (receiver) address
 
+    // When true (default), at startup the app assigns `macIP` to the direct-link
+    // adapter if it isn't already present (see LinkSetup). Disable with --no-auto-ip.
+    static var autoAssignIP = true
+    static let linkSubnet = "255.255.255.0"
+
     static var videoPort: UInt16 = 50001   // UDP
     static var inputPort: UInt16 = 50002   // TCP
     static var controlPort: UInt16 = 50003 // TCP
@@ -56,6 +61,7 @@ enum NetworkConfig {
     /// Parse command-line overrides. Recognized flags:
     ///   --peer <ip>          receiver IP (default 169.254.1.2)
     ///   --bind <ip>          our local IP (default 169.254.1.1; "0.0.0.0" = any)
+    ///   --no-auto-ip         don't auto-assign --bind IP to the adapter at startup
     ///   --video-port <n>     --control-port <n>     --input-port <n>
     ///   --codec h264|hevc    --bitrate <Mbps>
     ///   --fps <n>            --res <WxH>
@@ -71,6 +77,7 @@ enum NetworkConfig {
             switch flag {
             case "--peer":         if let v = nextValue() { winIP = v }
             case "--bind":         if let v = nextValue() { macIP = v }
+            case "--no-auto-ip":   autoAssignIP = false
             case "--video-port":   if let v = nextValue(), let p = UInt16(v) { videoPort = p }
             case "--control-port": if let v = nextValue(), let p = UInt16(v) { controlPort = p }
             case "--input-port":   if let v = nextValue(), let p = UInt16(v) { inputPort = p }

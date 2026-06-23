@@ -28,6 +28,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("ThunderLinkSender starting")
 
+        // Make sure the direct-link adapter actually carries our bind IP before
+        // we open any sockets; otherwise bind() fails with EADDRNOTAVAIL (49).
+        // Prompts for admin only when the address isn't already assigned.
+        LinkSetup.ensureLinkAddress()
+
         // Menu-bar-only app (no dock icon) with a SwiftUI status panel.
         NSApp.setActivationPolicy(.accessory)
         statusController.onQuit = { NSApp.terminate(nil) }
