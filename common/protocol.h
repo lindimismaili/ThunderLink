@@ -9,9 +9,12 @@
 
 /* Protocol identification */
 #define TLNK_MAGIC          0x544C4E4B  /* "TLNK" in ASCII */
-#define TLNK_VERSION        1
+#define TLNK_VERSION        2           /* v2: compressed (H.264/HEVC) video + keyframe recovery */
 
-/* Network configuration */
+/* Network configuration.
+ * These are DEFAULTS for a direct link-local link; both sides accept overrides
+ * (peer/bind IP + ports) via command-line arguments. See AppConfig (Windows) and
+ * RuntimeConfig (Mac). */
 #define TLNK_MAC_IP         "169.254.1.1"
 #define TLNK_WIN_IP         "169.254.1.2"
 #define TLNK_PORT_VIDEO     50001   /* UDP - video frames */
@@ -20,7 +23,7 @@
 
 /* Packet limits */
 #define TLNK_MTU            9000    /* Jumbo frames */
-#define TLNK_HEADER_SIZE    36      /* sizeof(TlnkFrameHeader); enforced by _Static_assert */
+#define TLNK_HEADER_SIZE    40      /* sizeof(TlnkFrameHeader); enforced by _Static_assert */
 #define TLNK_MAX_PAYLOAD    8192    /* Payload per UDP packet */
 
 /* Socket buffer sizes */
@@ -37,9 +40,13 @@
 #define TLNK_RECONNECT_INTERVAL_MS  1000
 #define TLNK_PING_INTERVAL_MS       1000
 
-/* Pixel formats */
+/* Video payload formats (carried in TlnkFrameHeader.format).
+ * BGRA32 is the legacy uncompressed mode kept for testing/regression; the
+ * normal path is a hardware-encoded H.264/HEVC Annex-B access unit. */
 typedef enum {
-    TLNK_FORMAT_BGRA32 = 0
+    TLNK_FORMAT_BGRA32 = 0,  /* raw uncompressed BGRA (legacy/test) */
+    TLNK_FORMAT_H264   = 1,  /* H.264 Annex-B access unit */
+    TLNK_FORMAT_HEVC   = 2   /* HEVC (H.265) Annex-B access unit */
 } TlnkPixelFormat;
 
 /* Frame flags (bitmask) */
@@ -51,14 +58,21 @@ typedef enum {
 
 /* Control message types */
 typedef enum {
-    TLNK_CTRL_HELLO     = 1,
-    TLNK_CTRL_START     = 2,
-    TLNK_CTRL_STOP      = 3,
-    TLNK_CTRL_CONFIGURE = 4,
-    TLNK_CTRL_PING      = 5,
-    TLNK_CTRL_PONG      = 6,
-    TLNK_CTRL_BYE       = 7
+    TLNK_CTRL_HELLO           = 1,
+    TLNK_CTRL_START           = 2,
+    TLNK_CTRL_STOP            = 3,
+    TLNK_CTRL_CONFIGURE       = 4,
+    TLNK_CTRL_PING            = 5,
+    TLNK_CTRL_PONG            = 6,
+    TLNK_CTRL_BYE             = 7,
+    TLNK_CTRL_REQUEST_KEYFRAME = 8  /* Win -> Mac: force next frame to be an IDR (loss recovery) */
 } TlnkControlType;
+
+/* Video codecs negotiated in the CONFIGURE/START handshake. */
+typedef enum {
+    TLNK_CODEC_H264 = 0,
+    TLNK_CODEC_HEVC = 1
+} TlnkCodec;
 
 /* Resolution presets */
 typedef struct {

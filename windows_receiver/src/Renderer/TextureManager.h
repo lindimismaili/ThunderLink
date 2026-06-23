@@ -8,6 +8,13 @@ using Microsoft::WRL::ComPtr;
 
 namespace thunderlink {
 
+/* Manages the decoded-video textures as NV12 (two planes):
+ *   - Y  plane: R8_UNORM,   width x height        (SRV slot t0)
+ *   - UV plane: R8G8_UNORM, width/2 x height/2    (SRV slot t1, interleaved CbCr)
+ * The pixel shader samples both and converts BT.709 YUV -> RGB.
+ *
+ * Decoded NV12 arrives in system memory (tightly packed) and is uploaded to the
+ * two GPU textures each frame. */
 class TextureManager {
 public:
     TextureManager();
@@ -16,19 +23,17 @@ public:
     bool Initialize(ID3D12Device* device, uint32_t maxWidth, uint32_t maxHeight);
     void Shutdown();
 
-    /* Upload frame pixel data from CPU to GPU.
-     * Records commands into the provided command list.
-     * Returns true if upload was initiated. */
-    bool UploadFrame(ID3D12GraphicsCommandList* cmdList,
-                     const uint8_t* data, uint32_t width, uint32_t height);
+    /* Upload one NV12 frame (system memory) into the Y/UV textures.
+     * yStride/uvStride are source bytes-per-row (tightly packed: == width). */
+    bool UploadNV12(ID3D12GraphicsCommandList* cmdList,
+                    const uint8_t* yPlane, const uint8_t* uvPlane,
+                    uint32_t width, uint32_t height,
+                    uint32_t yStride, uint32_t uvStride);
 
-    /* Transition texture to shader-readable state (call after upload) */
     void TransitionToShaderResource(ID3D12GraphicsCommandList* cmdList);
-
-    /* Transition texture to copy-dest state (call before upload) */
     void TransitionToCopyDest(ID3D12GraphicsCommandList* cmdList);
 
-    ID3D12Resource* GetTexture() const { return m_texture.Get(); }
+    /* GPU handle to the start of the 2-descriptor table (t0=Y, t1=UV). */
     D3D12_GPU_DESCRIPTOR_HANDLE GetSRV() const;
     ID3D12DescriptorHeap* GetSRVHeap() const { return m_srvHeap.Get(); }
 
@@ -36,34 +41,35 @@ public:
     uint32_t GetTextureHeight() const { return m_textureHeight; }
 
     static constexpr UINT UPLOAD_BUFFER_COUNT = 3;
-    static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_B8G8R8A8_UNORM;
+    static constexpr DXGI_FORMAT FORMAT_Y  = DXGI_FORMAT_R8_UNORM;
+    static constexpr DXGI_FORMAT FORMAT_UV = DXGI_FORMAT_R8G8_UNORM;
 
 private:
-    bool CreateTexture(uint32_t width, uint32_t height);
+    bool CreateTextures(uint32_t width, uint32_t height);
     bool CreateUploadBuffers(uint32_t maxWidth, uint32_t maxHeight);
+    void CreateSRVs();
 
-    /* D3D12 requires row pitch aligned to 256 bytes */
-    static uint32_t AlignRowPitch(uint32_t width) {
-        uint32_t rowBytes = width * 4; /* BGRA32 = 4 bytes per pixel */
-        return (rowBytes + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1)
-               & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1);
-    }
+    static uint32_t Align(uint32_t v, uint32_t a) { return (v + a - 1) & ~(a - 1); }
 
     ID3D12Device* m_device = nullptr;
 
-    /* GPU-side texture (default heap) */
-    ComPtr<ID3D12Resource> m_texture;
+    /* GPU-side textures (default heap) */
+    ComPtr<ID3D12Resource> m_texY;
+    ComPtr<ID3D12Resource> m_texUV;
     uint32_t m_textureWidth = 0;
     uint32_t m_textureHeight = 0;
 
-    /* CPU-side upload buffers (upload heap, ring-buffered) */
+    /* CPU-side upload buffers (upload heap, ring-buffered). Each holds the Y
+     * plane followed by the UV plane (placement-aligned). */
     ComPtr<ID3D12Resource> m_uploadBuffers[UPLOAD_BUFFER_COUNT];
     uint32_t m_currentUploadBuffer = 0;
-    uint32_t m_uploadBufferRowPitch = 0;   /* Aligned row pitch */
-    uint32_t m_uploadBufferMaxHeight = 0;
+    uint64_t m_uploadBufferSize = 0;
+    uint32_t m_maxWidth = 0;
+    uint32_t m_maxHeight = 0;
 
-    /* SRV descriptor heap */
+    /* SRV descriptor heap (2 descriptors: Y at 0, UV at 1) */
     ComPtr<ID3D12DescriptorHeap> m_srvHeap;
+    UINT m_srvIncrement = 0;
 
     D3D12_RESOURCE_STATES m_currentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 };

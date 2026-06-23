@@ -93,6 +93,7 @@ set(SOURCES
     src/Network/FrameReceiver.cpp
     src/Network/InputSender.cpp
     src/Network/NetworkManager.cpp
+    src/Decoder/VideoDecoderMF.cpp
     src/Renderer/D3D12Renderer.cpp
     src/Renderer/TextureManager.cpp
     src/Renderer/SwapChain.cpp
@@ -105,10 +106,12 @@ set(SOURCES
 
 set(HEADERS
     src/App/Application.h
+    src/App/Config.h
     src/App/Window.h
     src/Network/FrameReceiver.h
     src/Network/InputSender.h
     src/Network/NetworkManager.h
+    src/Decoder/VideoDecoder.h
     src/Renderer/D3D12Renderer.h
     src/Renderer/TextureManager.h
     src/Renderer/SwapChain.h
@@ -132,6 +135,12 @@ target_link_libraries(ThunderLinkReceiver PRIVATE
     d3dcompiler
     dxguid
     ws2_32
+    # Media Foundation (hardware H.264/HEVC decode)
+    mfplat
+    mfuuid
+    wmcodecdspuuid
+    # Command-line parsing (CommandLineToArgvW)
+    shell32
     nlohmann_json::nlohmann_json
 )
 

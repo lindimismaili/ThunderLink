@@ -21,8 +21,10 @@ public:
     bool Initialize(HWND hwnd, uint32_t width, uint32_t height);
     void Shutdown();
 
-    /* Upload a new frame and render it to screen */
-    void RenderFrame(const uint8_t* frameData, uint32_t width, uint32_t height);
+    /* Upload a new decoded NV12 frame and render it to screen */
+    void RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
+                     uint32_t width, uint32_t height,
+                     uint32_t yStride, uint32_t uvStride);
 
     /* Render the last uploaded texture (no new upload) */
     void RenderLastFrame();

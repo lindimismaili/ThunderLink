@@ -10,7 +10,7 @@ namespace thunderlink {
 FrameBuffer::FrameBuffer(uint32_t poolSize, uint32_t maxWidth, uint32_t maxHeight,
                          PerformanceMonitor* perfMon)
     : m_poolSize(poolSize)
-    , m_maxFrameBytes(maxWidth * maxHeight * 4) /* BGRA32 */
+    , m_maxFrameBytes(maxWidth * maxHeight * 4) /* worst case = raw BGRA32 */
     , m_perfMon(perfMon)
 {
     m_pool.resize(static_cast<size_t>(m_poolSize) * m_maxFrameBytes, 0);
@@ -44,9 +44,14 @@ void FrameBuffer::FreePoolSlot(uint32_t index) {
     }
 }
 
+void FrameBuffer::NotifyLost() {
+    if (m_onFrameLost) m_onFrameLost();
+}
+
 void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* payload) {
     if (header.payload_size == 0 || !payload) return;
     if (header.packet_seq >= header.total_packets) return;
+    if (header.frame_total_bytes == 0 || header.frame_total_bytes > m_maxFrameBytes) return;
 
     auto startTime = std::chrono::steady_clock::now();
 
@@ -61,7 +66,8 @@ void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* pay
         /* New frame - allocate a pool slot */
         int32_t slot = AllocatePoolSlot();
         if (slot < 0) {
-            /* No slots available - drop the oldest pending frame to make room */
+            /* No slots available - drop the oldest pending frame to make room.
+             * This is a real data loss: trigger keyframe recovery. */
             uint64_t oldestId = UINT64_MAX;
             for (auto& [id, assembly] : m_pendingFrames) {
                 if (id < oldestId) oldestId = id;
@@ -70,6 +76,7 @@ void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* pay
                 FreePoolSlot(m_pendingFrames[oldestId].poolIndex);
                 m_pendingFrames.erase(oldestId);
                 if (m_perfMon) m_perfMon->FrameDropped();
+                NotifyLost();
                 LOG_WARN("FrameBuffer: dropped frame %llu to free pool slot", oldestId);
             }
             slot = AllocatePoolSlot();
@@ -82,6 +89,9 @@ void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* pay
         assembly.height = header.height;
         assembly.totalPackets = header.total_packets;
         assembly.receivedPackets = 0;
+        assembly.frameTotalBytes = header.frame_total_bytes;
+        assembly.format = header.format;
+        assembly.flags = header.flags;
         assembly.poolIndex = static_cast<uint32_t>(slot);
         assembly.packetReceived.resize(header.total_packets, false);
         assembly.startTime = startTime;
@@ -95,11 +105,10 @@ void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* pay
     /* Skip duplicate packets */
     if (frame.packetReceived[header.packet_seq]) return;
 
-    /* Copy payload into the correct offset in the pool buffer */
+    /* Copy payload into the correct offset in the pool buffer (contiguous
+     * slicing of the encoded access unit / raw frame). */
     uint32_t offset = header.packet_seq * TLNK_MAX_PAYLOAD;
-    uint32_t maxSize = frame.width * frame.height * 4;
-
-    if (offset + header.payload_size > maxSize) {
+    if (offset + header.payload_size > frame.frameTotalBytes) {
         LOG_WARN("FrameBuffer: packet offset+size exceeds frame size, skipping");
         return;
     }
@@ -123,6 +132,9 @@ void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* pay
         completed.frameId = frame.frameId;
         completed.width = frame.width;
         completed.height = frame.height;
+        completed.size = frame.frameTotalBytes;
+        completed.format = frame.format;
+        completed.flags = frame.flags;
         completed.poolIndex = frame.poolIndex;
 
         /* Remove from pending (but keep pool slot allocated - renderer will release) */
@@ -135,7 +147,8 @@ void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* pay
         }
         m_completedCV.notify_one();
 
-        /* Drop any pending frames older than the completed one */
+        /* Drop any pending frames older than the completed one. For inter-frame
+         * video these are unrecoverable gaps, so request a keyframe. */
         std::vector<uint64_t> toRemove;
         for (auto& [id, assembly] : m_pendingFrames) {
             if (id < completed.frameId) {
@@ -146,13 +159,12 @@ void FrameBuffer::InsertPacket(const TlnkFrameHeader& header, const uint8_t* pay
             FreePoolSlot(m_pendingFrames[id].poolIndex);
             m_pendingFrames.erase(id);
             if (m_perfMon) m_perfMon->FrameDropped();
+            NotifyLost();
         }
     }
 }
 
-bool FrameBuffer::WaitForFrame(const uint8_t** outData, uint32_t* outWidth,
-                                uint32_t* outHeight, uint64_t* outFrameId,
-                                uint32_t timeoutMs) {
+bool FrameBuffer::WaitForFrame(ReceivedFrame* out, uint32_t timeoutMs) {
     std::unique_lock<std::mutex> lock(m_completedMutex);
 
     if (m_completedFrames.empty()) {
@@ -162,22 +174,21 @@ bool FrameBuffer::WaitForFrame(const uint8_t** outData, uint32_t* outWidth,
 
     if (m_completedFrames.empty()) return false;
 
-    /* If multiple frames are queued, skip to the latest (drop intermediate frames) */
+    /* Return the OLDEST completed frame (FIFO). Unlike the old raw path we do
+     * NOT skip to the latest, because compressed frames depend on their
+     * predecessors — dropping one would corrupt everything until the next IDR.
+     * Build-up is bounded by the small pool; if we ever fall behind, pool
+     * exhaustion triggers keyframe recovery instead. */
     CompletedFrame frame = m_completedFrames.front();
     m_completedFrames.pop();
 
-    while (!m_completedFrames.empty()) {
-        /* Release the skipped frame's pool slot */
-        FreePoolSlot(frame.poolIndex);
-        if (m_perfMon) m_perfMon->FrameDropped();
-        frame = m_completedFrames.front();
-        m_completedFrames.pop();
-    }
-
-    *outData = GetPoolSlot(frame.poolIndex);
-    *outWidth = frame.width;
-    *outHeight = frame.height;
-    *outFrameId = frame.frameId;
+    out->data = GetPoolSlot(frame.poolIndex);
+    out->size = frame.size;
+    out->width = frame.width;
+    out->height = frame.height;
+    out->frameId = frame.frameId;
+    out->format = frame.format;
+    out->flags = frame.flags;
 
     /* Track that this frame's pool slot is held by the renderer */
     {
@@ -219,6 +230,7 @@ void FrameBuffer::EvictStaleFrames(uint32_t maxAgeMs) {
         FreePoolSlot(m_pendingFrames[id].poolIndex);
         m_pendingFrames.erase(id);
         if (m_perfMon) m_perfMon->FrameDropped();
+        NotifyLost();  /* lost packets -> need an IDR to resume cleanly */
     }
 }
 

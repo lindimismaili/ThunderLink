@@ -1,5 +1,6 @@
 #include "NetworkManager.h"
 #include "Utils/Logger.h"
+#include "App/Config.h"
 
 #include <nlohmann/json.hpp>
 #include <chrono>
@@ -23,10 +24,11 @@ bool NetworkManager::Start() {
         return false;
     }
 
-    struct sockaddr_in addr = tlnk_make_addr(TLNK_WIN_IP, TLNK_PORT_CONTROL);
+    const auto& cfg = GetConfig();
+    struct sockaddr_in addr = tlnk_make_addr(cfg.bindIP.c_str(), cfg.controlPort);
     if (bind(m_listenSocket, (struct sockaddr*)&addr, sizeof(addr)) == TLNK_SOCKET_ERROR) {
         LOG_ERROR("NetworkManager: failed to bind control socket to %s:%d (err=%d)",
-                  TLNK_WIN_IP, TLNK_PORT_CONTROL, tlnk_get_error());
+                  cfg.bindIP.c_str(), cfg.controlPort, tlnk_get_error());
         tlnk_close_socket(m_listenSocket);
         m_listenSocket = TLNK_INVALID_SOCKET;
         return false;
@@ -39,7 +41,7 @@ bool NetworkManager::Start() {
         return false;
     }
 
-    LOG_INFO("NetworkManager: listening on %s:%d", TLNK_WIN_IP, TLNK_PORT_CONTROL);
+    LOG_INFO("NetworkManager: listening on %s:%d", cfg.bindIP.c_str(), cfg.controlPort);
 
     m_running.store(true);
     m_controlThread = std::thread(&NetworkManager::ControlThread, this);
@@ -79,11 +81,14 @@ ConnectionInfo NetworkManager::GetConnectionInfo() const {
 bool NetworkManager::RequestConfigure(uint32_t width, uint32_t height, uint32_t fps) {
     if (!m_connected.load() || m_clientSocket == TLNK_INVALID_SOCKET) return false;
 
+    const auto& cfg = GetConfig();
     json configure;
-    configure["type"] = TLNK_CTRL_CONFIGURE;
-    configure["width"] = width;
-    configure["height"] = height;
-    configure["fps"] = fps;
+    configure["type"]    = TLNK_CTRL_CONFIGURE;
+    configure["width"]   = width;
+    configure["height"]  = height;
+    configure["fps"]     = fps;
+    configure["codec"]   = (int)cfg.codec;
+    configure["bitrate"] = cfg.bitrateKbps;
 
     return SendControlMessage(m_clientSocket, configure.dump());
 }
@@ -153,12 +158,17 @@ bool NetworkManager::HandleClient(tlnk_socket_t clientSocket) {
         LOG_INFO("NetworkManager: received HELLO - version %d",
                  hello.value("version", 0));
 
-        /* Send CONFIGURE with desired settings */
+        /* Send CONFIGURE with desired settings from the runtime config. The
+         * codec is our PREFERRED codec; the Mac confirms the actual codec in
+         * START (it may downgrade HEVC->H.264 if it cannot encode HEVC). */
+        const auto& cfg = GetConfig();
         json configure;
-        configure["type"] = TLNK_CTRL_CONFIGURE;
-        configure["width"] = 1920;
-        configure["height"] = 1080;
-        configure["fps"] = 60;
+        configure["type"]    = TLNK_CTRL_CONFIGURE;
+        configure["width"]   = cfg.width;
+        configure["height"]  = cfg.height;
+        configure["fps"]     = cfg.fps;
+        configure["codec"]   = (int)cfg.codec;       /* TlnkCodec */
+        configure["bitrate"] = cfg.bitrateKbps;
 
         if (!SendControlMessage(clientSocket, configure.dump())) {
             LOG_ERROR("NetworkManager: failed to send CONFIGURE");
@@ -181,26 +191,33 @@ bool NetworkManager::HandleClient(tlnk_socket_t clientSocket) {
             return false;
         }
 
-        uint32_t w = start.value("width", 1920u);
-        uint32_t h = start.value("height", 1080u);
-        uint32_t fps = start.value("fps", 60u);
+        uint32_t w = start.value("width", cfg.width);
+        uint32_t h = start.value("height", cfg.height);
+        uint32_t fps = start.value("fps", cfg.fps);
+        TlnkCodec codec = (TlnkCodec)start.value("codec", (int)cfg.codec);
+        uint32_t bitrate = start.value("bitrate", cfg.bitrateKbps);
 
         {
             std::lock_guard<std::mutex> lock(m_infoMutex);
             m_connInfo.width = w;
             m_connInfo.height = h;
             m_connInfo.fps = fps;
+            m_connInfo.codec = codec;
+            m_connInfo.bitrateKbps = bitrate;
             m_connInfo.connected = true;
         }
 
         m_connected.store(true);
-        LOG_INFO("NetworkManager: streaming started at %ux%u @ %u fps", w, h, fps);
+        LOG_INFO("NetworkManager: streaming started at %ux%u @ %u fps, codec=%s, %u kbps",
+                 w, h, fps, (codec == TLNK_CODEC_HEVC ? "HEVC" : "H264"), bitrate);
 
         if (m_onConnected) {
             ConnectionInfo info;
             info.width = w;
             info.height = h;
             info.fps = fps;
+            info.codec = codec;
+            info.bitrateKbps = bitrate;
             info.connected = true;
             info.peerLatencyMs = 0.0f;
             m_onConnected(info);
@@ -258,7 +275,12 @@ bool NetworkManager::HandleClient(tlnk_socket_t clientSocket) {
 }
 
 bool NetworkManager::SendControlMessage(tlnk_socket_t sock, const std::string& jsonStr) {
-    /* 4-byte big-endian length prefix + JSON bytes */
+    /* 4-byte big-endian length prefix + JSON bytes.
+     * Serialized because pings (control thread) and keyframe requests (render
+     * thread) can both write to the client socket; interleaving would corrupt
+     * the length-prefixed framing. */
+    std::lock_guard<std::mutex> lock(m_sendMutex);
+
     uint32_t len = static_cast<uint32_t>(jsonStr.size());
     uint8_t header[4];
     header[0] = (len >> 24) & 0xFF;
@@ -270,6 +292,26 @@ bool NetworkManager::SendControlMessage(tlnk_socket_t sock, const std::string& j
     if (send(sock, jsonStr.c_str(), (int)jsonStr.size(), 0) != (int)jsonStr.size()) return false;
 
     return true;
+}
+
+void NetworkManager::RequestKeyframe() {
+    if (!m_connected.load() || m_clientSocket == TLNK_INVALID_SOCKET) return;
+
+    /* Rate-limit so a burst of lost packets doesn't trigger an IDR storm. */
+    auto now = std::chrono::steady_clock::now();
+    {
+        std::lock_guard<std::mutex> lock(m_sendMutex);
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - m_lastKeyframeReq).count() < KEYFRAME_REQ_MIN_INTERVAL_MS) {
+            return;
+        }
+        m_lastKeyframeReq = now;
+    }
+
+    json req;
+    req["type"] = TLNK_CTRL_REQUEST_KEYFRAME;
+    SendControlMessage(m_clientSocket, req.dump());
+    LOG_DEBUG("NetworkManager: requested keyframe (loss recovery)");
 }
 
 std::string NetworkManager::ReceiveControlMessage(tlnk_socket_t sock) {

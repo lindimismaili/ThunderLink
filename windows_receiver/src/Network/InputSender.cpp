@@ -1,5 +1,6 @@
 #include "InputSender.h"
 #include "Utils/Logger.h"
+#include "App/Config.h"
 
 #include "input_event.h"
 
@@ -61,16 +62,17 @@ bool InputSender::Connect() {
         return false;
     }
 
-    struct sockaddr_in addr = tlnk_make_addr(TLNK_MAC_IP, TLNK_PORT_INPUT);
+    const auto& cfg = GetConfig();
+    struct sockaddr_in addr = tlnk_make_addr(cfg.peerIP.c_str(), cfg.inputPort);
     if (connect(m_socket, (struct sockaddr*)&addr, sizeof(addr)) == TLNK_SOCKET_ERROR) {
         LOG_DEBUG("InputSender: failed to connect to %s:%d (err=%d)",
-                  TLNK_MAC_IP, TLNK_PORT_INPUT, tlnk_get_error());
+                  cfg.peerIP.c_str(), cfg.inputPort, tlnk_get_error());
         tlnk_close_socket(m_socket);
         m_socket = TLNK_INVALID_SOCKET;
         return false;
     }
 
-    LOG_INFO("InputSender: connected to %s:%d", TLNK_MAC_IP, TLNK_PORT_INPUT);
+    LOG_INFO("InputSender: connected to %s:%d", cfg.peerIP.c_str(), cfg.inputPort);
     m_connected.store(true);
     return true;
 }

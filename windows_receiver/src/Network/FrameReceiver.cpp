@@ -2,6 +2,7 @@
 #include "Utils/FrameBuffer.h"
 #include "Utils/PerformanceMonitor.h"
 #include "Utils/Logger.h"
+#include "App/Config.h"
 
 #include "frame_header.h"
 
@@ -24,10 +25,11 @@ bool FrameReceiver::Start() {
         return false;
     }
 
-    struct sockaddr_in addr = tlnk_make_addr(TLNK_WIN_IP, TLNK_PORT_VIDEO);
+    const auto& cfg = GetConfig();
+    struct sockaddr_in addr = tlnk_make_addr(cfg.bindIP.c_str(), cfg.videoPort);
     if (bind(m_socket, (struct sockaddr*)&addr, sizeof(addr)) == TLNK_SOCKET_ERROR) {
         LOG_ERROR("FrameReceiver: failed to bind to %s:%d (err=%d)",
-                  TLNK_WIN_IP, TLNK_PORT_VIDEO, tlnk_get_error());
+                  cfg.bindIP.c_str(), cfg.videoPort, tlnk_get_error());
         tlnk_close_socket(m_socket);
         m_socket = TLNK_INVALID_SOCKET;
         return false;
@@ -39,7 +41,7 @@ bool FrameReceiver::Start() {
     tv.tv_usec = 100000; /* 100ms */
     setsockopt(m_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
 
-    LOG_INFO("FrameReceiver: listening on %s:%d (UDP)", TLNK_WIN_IP, TLNK_PORT_VIDEO);
+    LOG_INFO("FrameReceiver: listening on %s:%d (UDP)", cfg.bindIP.c_str(), cfg.videoPort);
 
     m_running.store(true);
     m_receiveThread = std::thread(&FrameReceiver::ReceiveThread, this);

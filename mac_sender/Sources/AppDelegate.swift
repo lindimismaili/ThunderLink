@@ -1,5 +1,7 @@
 import AppKit
 import ScreenCaptureKit
+import CoreMedia
+import CoreVideo
 
 /// Top-level coordinator for the ThunderLink Mac sender.
 ///
@@ -7,10 +9,11 @@ import ScreenCaptureKit
 ///   * `applicationDidFinishLaunching` — checks permissions, brings up the input
 ///     receiver, frame sender, and control client. Capture is **not** started here.
 ///   * Once the control client completes the HELLO/CONFIGURE/START handshake with
-///     the Windows receiver, it calls back into `controlClient(_:didStartStreamingAt:...)`
-///     which starts `ScreenCapture` with `FrameSender` wired as its delegate.
-///   * On STOP/BYE or connection loss, `ScreenCapture` is stopped and the control
-///     client retries the connection.
+///     the Windows receiver, `controlClient(_:didStartStreamingAt:...)` builds a
+///     `VideoEncoder` for the negotiated codec/bitrate and starts `ScreenCapture`,
+///     wiring capture → encode → `FrameSender`.
+///   * On STOP/BYE or connection loss, capture + encoder are torn down and the
+///     control client retries the connection.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let displayManager = DisplayManager()
     private let frameSender    = FrameSender()
@@ -18,14 +21,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let inputInjector  = InputInjector()
     private let screenCapture  = ScreenCapture()
     private let controlClient  = ControlClient()
-    private var captureBridge: CaptureBridge?
+    private let captureBridge  = CaptureBridge()
+    private var videoEncoder: VideoEncoder?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("ThunderLinkSender starting")
         _ = InputInjector.checkAccessibilityPermission()
 
-        // Bridge ScreenCapture frames -> FrameSender (locks the CVPixelBuffer).
-        captureBridge = CaptureBridge(sender: frameSender)
         screenCapture.delegate = captureBridge
 
         // Start the input receiver (TCP 50002, Mac is server).
@@ -58,6 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("ThunderLinkSender terminating")
         controlClient.stop()
         Task { await screenCapture.stopCapture() }
+        videoEncoder?.stop()
+        videoEncoder = nil
         frameSender.stop()
         inputReceiver.stop()
     }
@@ -69,7 +73,9 @@ extension AppDelegate: ControlClientDelegate {
     func controlClient(_ client: ControlClient,
                        didStartStreamingAt width: Int,
                        height: Int,
-                       fps: Int) {
+                       fps: Int,
+                       codec: TlnkCodecSwift,
+                       bitrateKbps: Int) {
         guard let display = displayManager.mainDisplay else {
             logger.error("AppDelegate: no displays available; cannot start capture")
             return
@@ -80,6 +86,25 @@ extension AppDelegate: ControlClientDelegate {
         // mainDisplay is the one being captured; revisit if CONFIGURE ever
         // carries a display ID.)
         inputInjector.setScreenSize(width: width, height: height)
+
+        // Build a fresh encoder for the negotiated parameters.
+        videoEncoder?.stop()
+        let encoder = VideoEncoder(width: width, height: height, fps: fps,
+                                   bitrateKbps: bitrateKbps, codec: codec)
+        let wireFormat = NetworkConfig.wireFormat(for: codec)
+        encoder?.onEncodedFrame = { [weak self] frame in
+            self?.frameSender.sendEncodedFrame(frame.data,
+                                               isKeyframe: frame.isKeyframe,
+                                               format: wireFormat,
+                                               width: frame.width,
+                                               height: frame.height)
+        }
+        videoEncoder = encoder
+
+        // Route captured NV12 buffers into the encoder.
+        captureBridge.onFrame = { [weak self] pixelBuffer, pts in
+            self?.videoEncoder?.encode(pixelBuffer, pts: pts)
+        }
 
         Task { @MainActor in
             // If reconnecting after a drop, stop any prior capture first.
@@ -96,32 +121,29 @@ extension AppDelegate: ControlClientDelegate {
     }
 
     func controlClientDidStopStreaming(_ client: ControlClient) {
+        captureBridge.onFrame = nil
         Task { @MainActor in
             await screenCapture.stopCapture()
         }
+        videoEncoder?.stop()
+        videoEncoder = nil
+    }
+
+    func controlClientDidRequestKeyframe(_ client: ControlClient) {
+        videoEncoder?.requestKeyframe()
     }
 }
 
-// MARK: - ScreenCapture -> FrameSender bridge
+// MARK: - ScreenCapture -> VideoEncoder bridge
 
-/// Locks each captured CVPixelBuffer and forwards the BGRA bytes to FrameSender.
-/// Kept separate so FrameSender doesn't depend on ScreenCaptureKit types.
+/// Forwards each captured NV12 CVPixelBuffer to a sink (the encoder).
+/// Kept separate so FrameSender/VideoEncoder don't depend on ScreenCaptureKit types.
 final class CaptureBridge: ScreenCaptureDelegate {
-    private let sender: FrameSender
-
-    init(sender: FrameSender) {
-        self.sender = sender
-    }
+    var onFrame: ((CVPixelBuffer, CMTime) -> Void)?
 
     func screenCapture(_ capture: ScreenCapture,
                        didCaptureFrame pixelBuffer: CVPixelBuffer,
-                       width: Int, height: Int, bytesPerRow: Int) {
-        _ = PixelBufferUtils.withLockedBaseAddress(pixelBuffer) { base, w, h, bpr in
-            sender.sendFrame(pixelData: base,
-                             size: h * bpr,
-                             width: w,
-                             height: h,
-                             bytesPerRow: bpr)
-        }
+                       pts: CMTime) {
+        onFrame?(pixelBuffer, pts)
     }
 }

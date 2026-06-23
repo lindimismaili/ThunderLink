@@ -1,6 +1,7 @@
 #include "Application.h"
 
 #include "App/Window.h"
+#include "App/Config.h"
 #include "Renderer/D3D12Renderer.h"
 #include "Utils/FrameBuffer.h"
 #include "Utils/PerformanceMonitor.h"
@@ -9,6 +10,7 @@
 #include "Network/FrameReceiver.h"
 #include "Network/InputSender.h"
 #include "Input/InputCapture.h"
+#include "Decoder/VideoDecoder.h"
 
 #include "protocol.h"
 
@@ -23,9 +25,11 @@ Application::~Application() {
 }
 
 bool Application::Initialize(int nCmdShow) {
-    /* Create window */
+    const auto& cfg = GetConfig();
+
+    /* Create window sized to the configured stream resolution */
     m_window = std::make_unique<Window>();
-    if (!m_window->Create(m_hInstance, nCmdShow, 1920, 1080)) {
+    if (!m_window->Create(m_hInstance, nCmdShow, cfg.width, cfg.height)) {
         LOG_ERROR("Application: window creation failed");
         return false;
     }
@@ -53,10 +57,15 @@ bool Application::Initialize(int nCmdShow) {
     /* Start network manager (control channel) */
     m_networkManager = std::make_unique<NetworkManager>();
     m_networkManager->SetOnConnected([this](const ConnectionInfo& info) {
-        OnConnected(info.width, info.height, info.fps);
+        OnConnected(info);
     });
     m_networkManager->SetOnDisconnected([this]() {
         OnDisconnected();
+    });
+
+    /* Lost/dropped frames -> ask the Mac for an IDR (rate-limited in NetworkManager) */
+    m_frameBuffer->SetOnFrameLost([this]() {
+        if (m_networkManager) m_networkManager->RequestKeyframe();
     });
 
     if (!m_networkManager->Start()) {
@@ -104,16 +113,33 @@ int Application::Run() {
             break; /* WM_QUIT received */
         }
 
-        /* Try to get a completed frame */
-        const uint8_t* frameData = nullptr;
-        uint32_t width = 0, height = 0;
-        uint64_t frameId = 0;
+        /* (Re)create the decoder on this (render) thread if a new connection
+         * was negotiated by the control thread. */
+        MaybeInitDecoder();
 
-        if (m_frameBuffer->WaitForFrame(&frameData, &width, &height, &frameId, 1)) {
-            /* Render the new frame */
-            m_renderer->RenderFrame(frameData, width, height);
-            m_frameBuffer->ReleaseFrame(frameId);
-            m_perfMonitor->FrameRendered();
+        /* Try to get a completed (reassembled) encoded frame */
+        ReceivedFrame rf{};
+        if (m_decoder && m_frameBuffer->WaitForFrame(&rf, 1)) {
+            /* Detect a frame-id gap (loss) -> drop to keyframe to avoid corruption */
+            if (m_lastFrameId != 0 && rf.frameId != m_lastFrameId + 1) {
+                m_decoder->RequireKeyframe();
+                m_networkManager->RequestKeyframe();
+            }
+            m_lastFrameId = rf.frameId;
+
+            DecodedFrame df{};
+            bool decoded = m_decoder->Decode(
+                rf.data, rf.size, (rf.flags & TLNK_FLAG_KEY_FRAME) != 0, &df);
+            m_frameBuffer->ReleaseFrame(rf.frameId);
+
+            if (decoded) {
+                m_renderer->RenderFrame(df.yPlane, df.uvPlane, df.width, df.height,
+                                        df.yStride, df.uvStride);
+                m_perfMonitor->FrameRendered();
+            } else {
+                if (m_decoder->IsWaitingForKeyframe()) m_networkManager->RequestKeyframe();
+                m_renderer->RenderLastFrame();
+            }
         } else {
             /* No new frame - re-render the last frame to keep the window responsive */
             m_renderer->RenderLastFrame();
@@ -156,6 +182,7 @@ void Application::Shutdown() {
     m_inputSender.reset();
     m_frameReceiver.reset();
     m_networkManager.reset();
+    if (m_decoder) { m_decoder->Shutdown(); m_decoder.reset(); }
     m_frameBuffer.reset();
     m_perfMonitor.reset();
     m_renderer.reset();
@@ -164,14 +191,41 @@ void Application::Shutdown() {
     LOG_INFO("Application: shutdown complete");
 }
 
-void Application::OnConnected(uint32_t width, uint32_t height, uint32_t fps) {
-    LOG_INFO("Application: Mac connected, streaming %ux%u @ %u fps", width, height, fps);
+void Application::OnConnected(const ConnectionInfo& info) {
+    LOG_INFO("Application: Mac connected, streaming %ux%u @ %u fps, codec=%s",
+             info.width, info.height, info.fps,
+             (info.codec == TLNK_CODEC_HEVC ? "HEVC" : "H264"));
+    /* Hand the parameters to the render thread, which owns the decoder. */
+    std::lock_guard<std::mutex> lock(m_decoderMutex);
+    m_pendingInfo = info;
+    m_pendingDecoderInit = true;
     m_streaming = true;
 }
 
 void Application::OnDisconnected() {
     LOG_INFO("Application: Mac disconnected");
     m_streaming = false;
+}
+
+void Application::MaybeInitDecoder() {
+    ConnectionInfo info;
+    {
+        std::lock_guard<std::mutex> lock(m_decoderMutex);
+        if (!m_pendingDecoderInit) return;
+        m_pendingDecoderInit = false;
+        info = m_pendingInfo;
+    }
+
+    m_decoder = CreateMediaFoundationDecoder();
+    if (!m_decoder || !m_decoder->Initialize(info.codec, info.width, info.height)) {
+        LOG_ERROR("Application: decoder init failed for %ux%u codec=%d",
+                  info.width, info.height, (int)info.codec);
+        m_decoder.reset();
+        return;
+    }
+    m_lastFrameId = 0;
+    /* Decoder starts in "waiting for keyframe" state; ask the Mac for one now. */
+    if (m_networkManager) m_networkManager->RequestKeyframe();
 }
 
 void Application::OnResize(uint32_t width, uint32_t height) {

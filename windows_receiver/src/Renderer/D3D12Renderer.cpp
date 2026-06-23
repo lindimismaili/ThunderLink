@@ -249,7 +249,7 @@ bool D3D12Renderer::CreateRootSignatureAndPSO() {
     /* Root signature: 1 descriptor table (SRV) + 1 static sampler */
     D3D12_DESCRIPTOR_RANGE1 srvRange = {};
     srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    srvRange.NumDescriptors = 1;
+    srvRange.NumDescriptors = 2; /* t0 = Y plane, t1 = UV plane (NV12) */
     srvRange.BaseShaderRegister = 0; /* t0 */
     srvRange.RegisterSpace = 0;
     srvRange.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE;
@@ -331,7 +331,9 @@ bool D3D12Renderer::CreateRootSignatureAndPSO() {
     return true;
 }
 
-void D3D12Renderer::RenderFrame(const uint8_t* frameData, uint32_t width, uint32_t height) {
+void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
+                                uint32_t width, uint32_t height,
+                                uint32_t yStride, uint32_t uvStride) {
     if (!m_initialized) return;
 
     /* Wait for frame latency and fence */
@@ -355,7 +357,8 @@ void D3D12Renderer::RenderFrame(const uint8_t* frameData, uint32_t width, uint32
 
     /* Upload texture: transition to copy dest, upload, transition to SRV */
     m_textureManager.TransitionToCopyDest(m_commandList.Get());
-    m_textureManager.UploadFrame(m_commandList.Get(), frameData, width, height);
+    m_textureManager.UploadNV12(m_commandList.Get(), yPlane, uvPlane,
+                                width, height, yStride, uvStride);
     m_textureManager.TransitionToShaderResource(m_commandList.Get());
 
     m_hasFrame = true;

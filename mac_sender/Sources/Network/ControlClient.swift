@@ -3,15 +3,21 @@ import Foundation
 /// Notifies the application coordinator of control-channel state changes.
 protocol ControlClientDelegate: AnyObject {
     /// Called after a successful HELLO → CONFIGURE → START handshake.
-    /// The capture pipeline should start at the negotiated resolution and fps.
+    /// The capture pipeline should start at the negotiated resolution, fps, codec and bitrate.
     func controlClient(_ client: ControlClient,
                        didStartStreamingAt width: Int,
                        height: Int,
-                       fps: Int)
+                       fps: Int,
+                       codec: TlnkCodecSwift,
+                       bitrateKbps: Int)
 
     /// Called when the Windows receiver sent STOP/BYE or the connection dropped.
     /// The capture pipeline should stop. ControlClient will attempt to reconnect.
     func controlClientDidStopStreaming(_ client: ControlClient)
+
+    /// Called when the receiver asks for an IDR (loss recovery). The encoder
+    /// should force a keyframe on its next encoded frame.
+    func controlClientDidRequestKeyframe(_ client: ControlClient)
 }
 
 /// TCP control channel between the Mac sender and the Windows receiver.
@@ -130,17 +136,24 @@ final class ControlClient {
             logger.error("ControlClient: expected CONFIGURE, got type=\(configure[ControlField.type] ?? "nil")")
             return
         }
-        let width  = (configure[ControlField.width]  as? Int) ?? 1920
-        let height = (configure[ControlField.height] as? Int) ?? 1080
-        let fps    = (configure[ControlField.fps]    as? Int) ?? 60
-        logger.info("ControlClient: CONFIGURE \(width)x\(height) @ \(fps) fps")
+        let width  = (configure[ControlField.width]  as? Int) ?? NetworkConfig.defaultWidth
+        let height = (configure[ControlField.height] as? Int) ?? NetworkConfig.defaultHeight
+        let fps    = (configure[ControlField.fps]    as? Int) ?? NetworkConfig.defaultFPS
+        // TlnkCodec: 0 = H.264, 1 = HEVC. VideoToolbox can encode both on modern
+        // Macs, so we honor the receiver's request as-is.
+        let codecRaw = (configure[ControlField.codec] as? Int) ?? 1
+        let codec: TlnkCodecSwift = (codecRaw == 0) ? .h264 : .hevc
+        let bitrate = (configure[ControlField.bitrate] as? Int) ?? (NetworkConfig.defaultBitrateMbps * 1000)
+        logger.info("ControlClient: CONFIGURE \(width)x\(height) @ \(fps) fps, codec=\(codec), \(bitrate) kbps")
 
-        // 3. Send START echoing the negotiated config
+        // 3. Send START echoing the negotiated config (incl. the codec we'll send)
         let start: [String: Any] = [
-            ControlField.type:   TlnkControlType.start.rawValue,
-            ControlField.width:  width,
-            ControlField.height: height,
-            ControlField.fps:    fps
+            ControlField.type:    TlnkControlType.start.rawValue,
+            ControlField.width:   width,
+            ControlField.height:  height,
+            ControlField.fps:     fps,
+            ControlField.codec:   (codec == .hevc) ? 1 : 0,
+            ControlField.bitrate: bitrate
         ]
         guard sendJSON(start) else {
             logger.error("ControlClient: failed to send START")
@@ -151,7 +164,9 @@ final class ControlClient {
         delegate?.controlClient(self,
                                 didStartStreamingAt: width,
                                 height: height,
-                                fps: fps)
+                                fps: fps,
+                                codec: codec,
+                                bitrateKbps: bitrate)
 
         // 4. Steady state: handle PING/STOP/BYE
         while running {
@@ -167,6 +182,8 @@ final class ControlClient {
                     pong[ControlField.sentTime] = sentTime
                 }
                 _ = sendJSON(pong)
+            case .requestKeyframe:
+                delegate?.controlClientDidRequestKeyframe(self)
             case .stop, .bye:
                 logger.info("ControlClient: received STOP/BYE")
                 return

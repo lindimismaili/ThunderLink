@@ -1,0 +1,1 @@
+C:/Users/lindi/GitHub/Mac-Windows-Connect/AGENTS.md

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <cstdint>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -8,16 +9,18 @@
 #endif
 #include <windows.h>
 
+#include "Network/NetworkManager.h"   /* ConnectionInfo */
+
 namespace thunderlink {
 
 class Window;
 class D3D12Renderer;
 class FrameBuffer;
 class PerformanceMonitor;
-class NetworkManager;
 class FrameReceiver;
 class InputSender;
 class InputCapture;
+class VideoDecoder;
 
 class Application {
 public:
@@ -29,9 +32,12 @@ public:
     void Shutdown();
 
 private:
-    void OnConnected(uint32_t width, uint32_t height, uint32_t fps);
+    void OnConnected(const ConnectionInfo& info);
     void OnDisconnected();
     void OnResize(uint32_t width, uint32_t height);
+
+    /* Render-thread: (re)create the decoder when a new connection is negotiated. */
+    void MaybeInitDecoder();
 
     HINSTANCE m_hInstance;
 
@@ -43,7 +49,14 @@ private:
     std::unique_ptr<FrameReceiver> m_frameReceiver;
     std::unique_ptr<InputSender> m_inputSender;
     std::unique_ptr<InputCapture> m_inputCapture;
+    std::unique_ptr<VideoDecoder> m_decoder;
 
+    /* Decoder (re)init handoff from the control thread to the render thread. */
+    std::mutex m_decoderMutex;
+    bool m_pendingDecoderInit = false;
+    ConnectionInfo m_pendingInfo{};
+
+    uint64_t m_lastFrameId = 0;
     bool m_streaming = false;
 };
 

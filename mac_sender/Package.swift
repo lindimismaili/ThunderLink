@@ -7,7 +7,16 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ThunderLinkSender",
-            path: "Sources"
+            path: "Sources",
+            linkerSettings: [
+                // System frameworks for hardware capture/encode/input.
+                .linkedFramework("ScreenCaptureKit"),
+                .linkedFramework("VideoToolbox"),
+                .linkedFramework("CoreMedia"),
+                .linkedFramework("CoreVideo"),
+                .linkedFramework("CoreGraphics"),
+                .linkedFramework("AppKit")
+            ]
         )
     ]
 )

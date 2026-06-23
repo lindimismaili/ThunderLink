@@ -3,14 +3,19 @@ import CoreMedia
 import CoreVideo
 
 /// Delegate protocol for receiving captured frames.
+///
+/// Frames are delivered as IOSurface-backed NV12 `CVPixelBuffer`s ready to feed
+/// straight into the VideoToolbox encoder (no CPU copy). The presentation
+/// timestamp is forwarded so the encoder can stamp the bitstream.
 protocol ScreenCaptureDelegate: AnyObject {
     func screenCapture(_ capture: ScreenCapture,
                        didCaptureFrame pixelBuffer: CVPixelBuffer,
-                       width: Int, height: Int, bytesPerRow: Int)
+                       pts: CMTime)
 }
 
 /// Captures the Mac screen using ScreenCaptureKit with hardware acceleration.
-/// Configures the stream for BGRA32 output at the requested FPS.
+/// Configures the stream for NV12 (4:2:0) output at the requested FPS — the
+/// native input format for the VideoToolbox H.264/HEVC encoder.
 final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
     weak var delegate: ScreenCaptureDelegate?
 
@@ -30,9 +35,12 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
         let config = SCStreamConfiguration()
         config.width = width
         config.height = height
-        config.pixelFormat = kCVPixelFormatType_32BGRA
+        // NV12 (bi-planar 4:2:0, video range) — fed directly to VTCompressionSession.
+        config.pixelFormat = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        config.colorSpaceName = CGColorSpace.sRGB
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(fps))
-        config.queueDepth = 3
+        // Lower queue depth than the old uncompressed path to minimize latency.
+        config.queueDepth = 2
         config.showsCursor = true
 
         let filter = SCContentFilter(display: display,
@@ -43,7 +51,7 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
         try stream?.addStreamOutput(self, type: .screen, sampleHandlerQueue: frameQueue)
         try await stream?.startCapture()
 
-        logger.info("ScreenCapture: started \(width)x\(height) @ \(fps) fps")
+        logger.info("ScreenCapture: started \(width)x\(height) @ \(fps) fps (NV12)")
     }
 
     /// Stop the current capture session.
@@ -63,14 +71,24 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
                 didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
                 of type: SCStreamOutputType) {
         guard type == .screen else { return }
+
+        // Only forward frames whose contents actually changed (.complete).
+        // ScreenCaptureKit also emits .idle frames when the screen is static;
+        // skipping them saves bandwidth (the receiver holds the last frame).
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer,
+                                                                        createIfNecessary: false)
+                as? [[SCStreamFrameInfo: Any]],
+              let info = attachments.first,
+              let statusRaw = info[.status] as? Int,
+              let status = SCFrameStatus(rawValue: statusRaw),
+              status == .complete else {
+            return
+        }
+
         guard let pixelBuffer = sampleBuffer.imageBuffer else { return }
+        let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 
-        let width = CVPixelBufferGetWidth(pixelBuffer)
-        let height = CVPixelBufferGetHeight(pixelBuffer)
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-
-        delegate?.screenCapture(self, didCaptureFrame: pixelBuffer,
-                                width: width, height: height, bytesPerRow: bytesPerRow)
+        delegate?.screenCapture(self, didCaptureFrame: pixelBuffer, pts: pts)
     }
 
     // MARK: - SCStreamDelegate
