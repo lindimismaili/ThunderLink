@@ -29,6 +29,11 @@ public:
     void SetInputCapture(InputCapture* capture) { m_inputCapture = capture; }
     void SetResizeCallback(ResizeCallback cb) { m_resizeCallback = std::move(cb); }
 
+    /* Lock the window's client area to this aspect ratio (width/height). The
+     * window snaps to it now and stays constrained while the user resizes.
+     * Pass <= 0 to disable. */
+    void SetAspectRatio(float aspect);
+
     /* Process all pending Win32 messages. Returns false if WM_QUIT received. */
     bool ProcessMessages();
 
@@ -43,6 +48,7 @@ private:
 
     InputCapture* m_inputCapture = nullptr;
     ResizeCallback m_resizeCallback;
+    float m_aspectRatio = 0.0f;  /* client-area aspect lock (width/height); 0 = off */
 
     static constexpr const wchar_t* CLASS_NAME = L"ThunderLinkReceiverClass";
 };

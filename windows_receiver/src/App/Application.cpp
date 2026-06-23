@@ -139,6 +139,9 @@ int Application::Run() {
                     m_lastFrameId = 0;
                     /* Keep cursor mapping aligned to the new video rectangle. */
                     if (m_inputCapture) m_inputCapture->SetStreamSize(rf.width, rf.height);
+                    /* Lock the window to the stream's aspect so there are no bars. */
+                    if (m_window) m_window->SetAspectRatio(
+                        static_cast<float>(rf.width) / static_cast<float>(rf.height));
                     m_networkManager->RequestKeyframe();
                 } else {
                     m_decoder.reset();
@@ -300,19 +303,19 @@ void Application::DrawUI() {
 
             /* Resolution picker: tells the Mac to recapture at the chosen size.
              * "Source (native)" (0x0) makes the Mac stream its native display res. */
+            // Pick a target HEIGHT; the Mac derives the width from its own
+            // display aspect so the stream matches the Mac (no distortion, no
+            // SCK letterbox). width=0 means "derive from aspect"; (0,0) = native.
             static const char* kResLabels[] = {
-                "Source (native)", "3840 x 2160", "2560 x 1440", "1920 x 1080", "1280 x 720"
+                "Source (native)", "1440p", "1080p", "720p", "480p"
             };
-            static const uint32_t kResDims[][2] = {
-                {0, 0}, {3840, 2160}, {2560, 1440}, {1920, 1080}, {1280, 720}
-            };
+            static const uint32_t kResHeights[] = { 0, 1440, 1080, 720, 480 };
             static int resIndex = 0; /* default Source (native) */
             ImGui::SetNextItemWidth(150.0f);
             if (ImGui::Combo("Resolution", &resIndex, kResLabels, IM_ARRAYSIZE(kResLabels))) {
                 const auto& info2 = m_networkManager->GetConnectionInfo();
                 uint32_t fps = info2.fps ? info2.fps : GetConfig().fps;
-                m_networkManager->RequestConfigure(kResDims[resIndex][0],
-                                                   kResDims[resIndex][1], fps);
+                m_networkManager->RequestConfigure(0, kResHeights[resIndex], fps);
                 LOG_INFO("Application: requested resolution %s", kResLabels[resIndex]);
             }
         }
