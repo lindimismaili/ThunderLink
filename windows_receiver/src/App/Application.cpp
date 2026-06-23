@@ -139,6 +139,9 @@ int Application::Run() {
                     m_lastFrameId = 0;
                     /* Keep cursor mapping aligned to the new video rectangle. */
                     if (m_inputCapture) m_inputCapture->SetStreamSize(rf.width, rf.height);
+                    /* Lock the window to the stream's aspect so there are no bars. */
+                    if (m_window) m_window->SetAspectRatio(
+                        static_cast<float>(rf.width) / static_cast<float>(rf.height));
                     m_networkManager->RequestKeyframe();
                 } else {
                     m_decoder.reset();

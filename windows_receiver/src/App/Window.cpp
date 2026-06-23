@@ -2,6 +2,8 @@
 #include "Input/InputCapture.h"
 #include "Utils/Logger.h"
 
+#include <cmath>
+
 #include "imgui.h"
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg,
                                                              WPARAM wParam, LPARAM lParam);
@@ -86,6 +88,28 @@ void Window::Destroy() {
     }
 }
 
+void Window::SetAspectRatio(float aspect) {
+    if (aspect <= 0.0f) { m_aspectRatio = 0.0f; return; }
+    if (std::fabs(aspect - m_aspectRatio) < 0.001f) return;  // unchanged
+    m_aspectRatio = aspect;
+    if (!m_hwnd) return;
+
+    /* Only snap in windowed mode (don't fight F11 borderless fullscreen). */
+    if ((GetWindowLongW(m_hwnd, GWL_STYLE) & WS_CAPTION) == 0) return;
+
+    RECT cr;
+    if (!GetClientRect(m_hwnd, &cr)) return;
+    int clientW = cr.right - cr.left;
+    if (clientW < 16) clientW = 16;
+    int clientH = (int)(clientW / aspect + 0.5f);
+
+    RECT wr = {0, 0, clientW, clientH};
+    AdjustWindowRectEx(&wr, (DWORD)GetWindowLongW(m_hwnd, GWL_STYLE), FALSE, 0);
+    SetWindowPos(m_hwnd, nullptr, 0, 0, wr.right - wr.left, wr.bottom - wr.top,
+                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    LOG_DEBUG("Window: aspect locked to %.3f", aspect);
+}
+
 bool Window::ProcessMessages() {
     MSG msg;
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -131,6 +155,44 @@ LRESULT Window::WndProc(UINT msg, WPARAM wParam, LPARAM lParam) {
                 m_inputCapture->ProcessRawInput(lParam);
             }
             return DefWindowProcW(m_hwnd, msg, wParam, lParam);
+
+        case WM_SIZING: {
+            /* Constrain interactive resizing to the locked aspect ratio so the
+             * video fills the client area with no black bars. */
+            if (m_aspectRatio > 0.0f) {
+                RECT* rect = reinterpret_cast<RECT*>(lParam);
+                RECT cr, wr;
+                GetClientRect(m_hwnd, &cr);
+                GetWindowRect(m_hwnd, &wr);
+                const int frameW = (wr.right - wr.left) - (cr.right - cr.left);
+                const int frameH = (wr.bottom - wr.top) - (cr.bottom - cr.top);
+
+                int clientW = (rect->right - rect->left) - frameW;
+                int clientH = (rect->bottom - rect->top) - frameH;
+                if (clientW < 16) clientW = 16;
+                if (clientH < 16) clientH = 16;
+
+                switch (wParam) {
+                    case WMSZ_LEFT: case WMSZ_RIGHT:
+                        clientH = (int)(clientW / m_aspectRatio + 0.5f);
+                        rect->bottom = rect->top + clientH + frameH;
+                        break;
+                    case WMSZ_TOP: case WMSZ_BOTTOM:
+                        clientW = (int)(clientH * m_aspectRatio + 0.5f);
+                        rect->right = rect->left + clientW + frameW;
+                        break;
+                    case WMSZ_TOPLEFT: case WMSZ_TOPRIGHT:
+                        clientH = (int)(clientW / m_aspectRatio + 0.5f);
+                        rect->top = rect->bottom - (clientH + frameH);
+                        break;
+                    default: /* bottom corners */
+                        clientH = (int)(clientW / m_aspectRatio + 0.5f);
+                        rect->bottom = rect->top + clientH + frameH;
+                        break;
+                }
+            }
+            return TRUE;
+        }
 
         case WM_SIZE: {
             uint32_t newWidth = LOWORD(lParam);
