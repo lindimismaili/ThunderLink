@@ -16,6 +16,23 @@ FetchContent_Declare(json
 )
 FetchContent_MakeAvailable(json)
 
+# Dear ImGui (lightweight native overlay UI). Header/source only -- no CMake of
+# its own, so we compile the core + Win32/DX12 backends into our target.
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.90.9
+)
+FetchContent_MakeAvailable(imgui)
+set(IMGUI_DIR ${imgui_SOURCE_DIR})
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_dx12.cpp
+)
+
 # ---------- Shader Compilation ----------
 
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
@@ -122,11 +139,13 @@ set(HEADERS
     src/Utils/PerformanceMonitor.h
 )
 
-add_executable(ThunderLinkReceiver WIN32 ${SOURCES} ${HEADERS})
+add_executable(ThunderLinkReceiver WIN32 ${SOURCES} ${HEADERS} ${IMGUI_SOURCES})
 
 target_include_directories(ThunderLinkReceiver PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/../common
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
 )
 
 target_link_libraries(ThunderLinkReceiver PRIVATE

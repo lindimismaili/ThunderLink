@@ -2,6 +2,10 @@
 #include "Input/InputCapture.h"
 #include "Utils/Logger.h"
 
+#include "imgui.h"
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg,
+                                                             WPARAM wParam, LPARAM lParam);
+
 namespace thunderlink {
 
 Window::Window() {
@@ -114,6 +118,13 @@ LRESULT CALLBACK Window::StaticWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
 }
 
 LRESULT Window::WndProc(UINT msg, WPARAM wParam, LPARAM lParam) {
+    /* Let the ImGui overlay see input first (once it has been initialized). */
+    if (ImGui::GetCurrentContext() != nullptr) {
+        if (ImGui_ImplWin32_WndProcHandler(m_hwnd, msg, wParam, lParam)) {
+            return true;
+        }
+    }
+
     switch (msg) {
         case WM_INPUT:
             if (m_inputCapture) {

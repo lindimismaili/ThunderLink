@@ -9,13 +9,14 @@ let package = Package(
             name: "ThunderLinkSender",
             path: "Sources",
             linkerSettings: [
-                // System frameworks for hardware capture/encode/input.
+                // System frameworks for hardware capture/encode/input + UI.
                 .linkedFramework("ScreenCaptureKit"),
                 .linkedFramework("VideoToolbox"),
                 .linkedFramework("CoreMedia"),
                 .linkedFramework("CoreVideo"),
                 .linkedFramework("CoreGraphics"),
-                .linkedFramework("AppKit")
+                .linkedFramework("AppKit"),
+                .linkedFramework("SwiftUI")
             ]
         )
     ]

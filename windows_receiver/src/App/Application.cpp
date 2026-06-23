@@ -12,6 +12,8 @@
 #include "Input/InputCapture.h"
 #include "Decoder/VideoDecoder.h"
 
+#include "imgui.h"
+
 #include "protocol.h"
 
 namespace thunderlink {
@@ -46,6 +48,9 @@ bool Application::Initialize(int nCmdShow) {
     m_window->SetResizeCallback([this](uint32_t w, uint32_t h) {
         OnResize(w, h);
     });
+
+    /* Overlay UI (Dear ImGui) drawn by the renderer each frame */
+    m_renderer->SetUICallback([this]() { DrawUI(); });
 
     /* Create performance monitor */
     m_perfMonitor = std::make_unique<PerformanceMonitor>();
@@ -232,6 +237,55 @@ void Application::OnResize(uint32_t width, uint32_t height) {
     if (m_renderer) {
         m_renderer->Resize(width, height);
     }
+}
+
+void Application::DrawUI() {
+    /* F1 toggles the overlay. NewFrame always runs, so key state is current
+     * even while the panel is hidden. */
+    static bool visible = true;
+    if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) visible = !visible;
+    if (!visible) return;
+
+    const auto& cfg = GetConfig();
+    const bool connected = m_networkManager && m_networkManager->IsConnected();
+
+    ImGui::SetNextWindowPos(ImVec2(12, 12), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowBgAlpha(0.65f);
+    if (ImGui::Begin("ThunderLink", nullptr,
+                     ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing)) {
+
+        ImGui::TextColored(connected ? ImVec4(0.4f, 0.9f, 0.4f, 1.0f)
+                                     : ImVec4(0.9f, 0.8f, 0.3f, 1.0f),
+                           "%s", connected ? "Connected" : "Waiting for Mac...");
+        ImGui::Text("Peer: %s   Bind: %s", cfg.peerIP.c_str(), cfg.bindIP.c_str());
+
+        if (connected) {
+            ConnectionInfo info = m_networkManager->GetConnectionInfo();
+            ImGui::Text("Stream: %ux%u @ %u fps", info.width, info.height, info.fps);
+            ImGui::Text("Codec: %s   %u kbps",
+                        (info.codec == TLNK_CODEC_HEVC ? "HEVC" : "H.264"), info.bitrateKbps);
+            ImGui::Text("Peer latency: %.1f ms", m_networkManager->GetPeerLatency());
+        }
+
+        if (m_perfMonitor) {
+            PerformanceStats s = m_perfMonitor->GetStats();
+            ImGui::Separator();
+            ImGui::Text("FPS: %.1f", s.fps);
+            ImGui::Text("Bandwidth: %.1f Mbps", s.bandwidthMbps);
+            ImGui::Text("Reassembly: %.0f us", s.reassemblyTimeUs);
+            ImGui::Text("Rendered: %llu   Dropped: %llu",
+                        (unsigned long long)s.framesRendered,
+                        (unsigned long long)s.framesDropped);
+        }
+
+        ImGui::Separator();
+        if (ImGui::Button("Request keyframe") && m_networkManager) {
+            m_networkManager->RequestKeyframe();
+        }
+        ImGui::TextDisabled("F1 panel  -  F11 fullscreen  -  ESC release cursor");
+    }
+    ImGui::End();
 }
 
 } // namespace thunderlink

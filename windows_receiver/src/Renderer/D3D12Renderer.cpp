@@ -5,6 +5,10 @@
 #include <vector>
 #include <fstream>
 
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx12.h"
+
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
@@ -37,15 +41,71 @@ bool D3D12Renderer::Initialize(HWND hwnd, uint32_t width, uint32_t height) {
 
     if (!CreateRootSignatureAndPSO()) return false;
 
+    if (!InitImGui(hwnd)) {
+        LOG_WARN("D3D12Renderer: ImGui init failed; continuing without overlay");
+    }
+
     m_initialized = true;
     LOG_INFO("D3D12Renderer: initialized successfully");
     return true;
+}
+
+bool D3D12Renderer::InitImGui(HWND hwnd) {
+    /* Dedicated shader-visible SRV heap for the ImGui font atlas. */
+    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    desc.NumDescriptors = 1;
+    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    if (FAILED(m_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_imguiSrvHeap)))) {
+        return false;
+    }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr; /* don't write imgui.ini */
+
+    if (!ImGui_ImplWin32_Init(hwnd)) return false;
+    if (!ImGui_ImplDX12_Init(m_device.Get(), SwapChain::BUFFER_COUNT, SwapChain::FORMAT,
+                             m_imguiSrvHeap.Get(),
+                             m_imguiSrvHeap->GetCPUDescriptorHandleForHeapStart(),
+                             m_imguiSrvHeap->GetGPUDescriptorHandleForHeapStart())) {
+        return false;
+    }
+
+    m_imguiInitialized = true;
+    LOG_INFO("D3D12Renderer: ImGui overlay initialized");
+    return true;
+}
+
+void D3D12Renderer::RenderImGui(ID3D12GraphicsCommandList* cmdList) {
+    if (!m_imguiInitialized) return;
+
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+
+    if (m_uiCallback) m_uiCallback();
+
+    ImGui::Render();
+    ID3D12DescriptorHeap* heaps[] = { m_imguiSrvHeap.Get() };
+    cmdList->SetDescriptorHeaps(1, heaps);
+    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmdList);
 }
 
 void D3D12Renderer::Shutdown() {
     if (!m_initialized) return;
 
     WaitForGPU();
+
+    if (m_imguiInitialized) {
+        ImGui_ImplDX12_Shutdown();
+        ImGui_ImplWin32_Shutdown();
+        ImGui::DestroyContext();
+        m_imguiInitialized = false;
+    }
+    m_imguiSrvHeap.Reset();
 
     m_textureManager.Shutdown();
     m_swapChain.Shutdown();
@@ -406,6 +466,9 @@ void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
     m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_commandList->DrawInstanced(3, 1, 0, 0);
 
+    /* Overlay UI */
+    RenderImGui(m_commandList.Get());
+
     /* Transition back buffer to present */
     D3D12_RESOURCE_BARRIER presentBarrier = {};
     presentBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -433,7 +496,7 @@ void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
 }
 
 void D3D12Renderer::RenderLastFrame() {
-    if (!m_initialized || !m_hasFrame) return;
+    if (!m_initialized) return;
 
     m_swapChain.WaitForFrameLatency();
     m_frameIndex = m_swapChain.GetCurrentBackBufferIndex();
@@ -468,13 +531,19 @@ void D3D12Renderer::RenderLastFrame() {
     scissor.bottom = static_cast<LONG>(m_swapChain.GetHeight());
     m_commandList->RSSetScissorRects(1, &scissor);
 
-    m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
-    ID3D12DescriptorHeap* heaps[] = {m_textureManager.GetSRVHeap()};
-    m_commandList->SetDescriptorHeaps(1, heaps);
-    m_commandList->SetGraphicsRootDescriptorTable(0, m_textureManager.GetSRV());
+    /* Re-draw the last decoded frame only if we actually have one. */
+    if (m_hasFrame) {
+        m_commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+        ID3D12DescriptorHeap* heaps[] = {m_textureManager.GetSRVHeap()};
+        m_commandList->SetDescriptorHeaps(1, heaps);
+        m_commandList->SetGraphicsRootDescriptorTable(0, m_textureManager.GetSRV());
 
-    m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_commandList->DrawInstanced(3, 1, 0, 0);
+        m_commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_commandList->DrawInstanced(3, 1, 0, 0);
+    }
+
+    /* Overlay UI (also shown on the black screen before streaming starts) */
+    RenderImGui(m_commandList.Get());
 
     /* Back buffer -> present */
     D3D12_RESOURCE_BARRIER presentBarrier = {};

@@ -5,6 +5,7 @@
 #include <wrl/client.h>
 #include <cstdint>
 #include <string>
+#include <functional>
 
 #include "SwapChain.h"
 #include "TextureManager.h"
@@ -37,11 +38,17 @@ public:
 
     ID3D12Device* GetDevice() const { return m_device.Get(); }
 
+    /* Callback invoked each frame between ImGui::NewFrame and ImGui::Render so
+     * the app can build its overlay (status/stats/controls). */
+    void SetUICallback(std::function<void()> cb) { m_uiCallback = std::move(cb); }
+
 private:
     bool CreateDevice();
     bool CreateCommandInfrastructure();
     bool CreateRootSignatureAndPSO();
     bool LoadShaders(ID3DBlob** vsBlob, ID3DBlob** psBlob);
+    bool InitImGui(HWND hwnd);
+    void RenderImGui(ID3D12GraphicsCommandList* cmdList);
 
     void MoveToNextFrame();
     void WaitForFence(UINT64 fenceValue);
@@ -68,6 +75,11 @@ private:
     /* Sub-components */
     SwapChain m_swapChain;
     TextureManager m_textureManager;
+
+    /* ImGui overlay */
+    ComPtr<ID3D12DescriptorHeap> m_imguiSrvHeap;
+    std::function<void()> m_uiCallback;
+    bool m_imguiInitialized = false;
 
     /* State */
     bool m_initialized = false;

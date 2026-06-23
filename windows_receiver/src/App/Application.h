@@ -39,6 +39,9 @@ private:
     /* Render-thread: (re)create the decoder when a new connection is negotiated. */
     void MaybeInitDecoder();
 
+    /* Builds the ImGui overlay each frame (status / stats / controls). */
+    void DrawUI();
+
     HINSTANCE m_hInstance;
 
     std::unique_ptr<Window> m_window;

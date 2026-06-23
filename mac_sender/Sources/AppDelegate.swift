@@ -22,11 +22,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let screenCapture  = ScreenCapture()
     private let controlClient  = ControlClient()
     private let captureBridge  = CaptureBridge()
+    private let statusController = StatusController()
     private var videoEncoder: VideoEncoder?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("ThunderLinkSender starting")
-        _ = InputInjector.checkAccessibilityPermission()
+
+        // Menu-bar-only app (no dock icon) with a SwiftUI status panel.
+        NSApp.setActivationPolicy(.accessory)
+        statusController.onQuit = { NSApp.terminate(nil) }
+        statusController.install()
+        statusController.state.peerIP = NetworkConfig.winIP
+        statusController.state.accessibilityGranted = InputInjector.checkAccessibilityPermission()
 
         screenCapture.delegate = captureBridge
 
@@ -106,6 +113,20 @@ extension AppDelegate: ControlClientDelegate {
             self?.videoEncoder?.encode(pixelBuffer, pts: pts)
         }
 
+        // Update the menu-bar panel.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let s = self.statusController.state
+            s.connected = true
+            s.streaming = true
+            s.width = width
+            s.height = height
+            s.fps = fps
+            s.codec = (codec == .hevc) ? "HEVC" : "H.264"
+            s.bitrateKbps = bitrateKbps
+            self.statusController.refreshIcon()
+        }
+
         Task { @MainActor in
             // If reconnecting after a drop, stop any prior capture first.
             await screenCapture.stopCapture()
@@ -127,6 +148,13 @@ extension AppDelegate: ControlClientDelegate {
         }
         videoEncoder?.stop()
         videoEncoder = nil
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.statusController.state.connected = false
+            self.statusController.state.streaming = false
+            self.statusController.refreshIcon()
+        }
     }
 
     func controlClientDidRequestKeyframe(_ client: ControlClient) {
