@@ -76,6 +76,41 @@
             "problemMatcher": [],
             "group": "test",
             "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+        },
+
+        // ---------------- Auto-sync (git) ----------------
+        {
+            // Keeps this repo mirrored with origin/main while VSCode is open.
+            // git.autofetch (settings.json) refreshes origin every 60s; this loop
+            // notices the moment origin/main moves, then hands the pull + any
+            // merge-conflict resolution to the `claude` CLI, and pushes.
+            //
+            // Auto-starts on folder open — the first time, VSCode asks to
+            // "Allow Automatic Tasks"; accept it (Command Palette >
+            // "Tasks: Manage Automatic Tasks" to change later). Stop it any time
+            // by killing its terminal in the panel.
+            //
+            // It only acts when origin/main and HEAD differ, so an idle repo (or
+            // just-uncommitted edits) triggers nothing — no commit churn.
+            "label": "Git: Auto-sync (Claude-resolved)",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\"; while true; do git fetch -q origin main 2>/dev/null; L=\"$(git rev-parse @ 2>/dev/null)\"; R=\"$(git rev-parse origin/main 2>/dev/null)\"; if [ -n \"$R\" ] && [ \"$L\" != \"$R\" ]; then echo '[autosync] origin/main moved — syncing via Claude'; claude -p 'In this git repository, sync the main branch with origin. Commit any local changes with a short message, merge origin/main, and resolve any merge conflicts so the result is correct and compiles (combine both sides intent; never leave conflict markers). Then push. Reply with a one-line summary only.' --permission-mode acceptEdits --allowedTools 'Bash Edit Read Grep Glob Write'; fi; sleep 30; done"
+            ],
+            "windows": {
+                "command": "powershell",
+                "args": [
+                    "-NoProfile", "-Command",
+                    "while ($true) { git fetch -q origin main 2>$null; $L = (git rev-parse '@' 2>$null); $R = (git rev-parse origin/main 2>$null); if ($R -and ($L -ne $R)) { Write-Host '[autosync] origin/main moved — syncing via Claude'; claude -p 'In this git repository, sync the main branch with origin. Commit any local changes with a short message, merge origin/main, and resolve any merge conflicts so the result is correct (combine both sides; never leave conflict markers). Then push. Reply with a one-line summary only.' --permission-mode acceptEdits --allowedTools 'Bash Edit Read Grep Glob Write' }; Start-Sleep -Seconds 30 }"
+                ]
+            },
+            "options": { "cwd": "${workspaceFolder}" },
+            "isBackground": true,
+            "runOptions": { "runOn": "folderOpen" },
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "panel": "dedicated", "clear": true }
         }
     ]
 }
