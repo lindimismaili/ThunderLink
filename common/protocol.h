@@ -21,10 +21,16 @@
 #define TLNK_PORT_INPUT     50002   /* TCP - input events */
 #define TLNK_PORT_CONTROL   50003   /* TCP - control messages */
 
-/* Packet limits */
-#define TLNK_MTU            9000    /* Jumbo frames */
+/* Packet limits.
+ * Sized for the STANDARD 1500-byte Ethernet MTU (jumbo frames are usually OFF
+ * on USB-C->Ethernet adapters). Max UDP payload over 1500 MTU = 1472 bytes
+ * (1500 - 20 IP - 8 UDP); minus the 40-byte TlnkFrameHeader leaves 1432, so a
+ * 1400-byte chunk has margin. Oversized datagrams would be silently dropped by
+ * a non-jumbo link, which manifests as a black screen while TCP control/input
+ * (small packets) still work. */
+#define TLNK_MTU            1500    /* Standard Ethernet MTU */
 #define TLNK_HEADER_SIZE    40      /* sizeof(TlnkFrameHeader); enforced by _Static_assert */
-#define TLNK_MAX_PAYLOAD    8192    /* Payload per UDP packet */
+#define TLNK_MAX_PAYLOAD    1400    /* Payload per UDP packet (fits 1500 MTU with the header) */
 
 /* Socket buffer sizes */
 #define TLNK_RECV_BUFFER_SIZE  (4 * 1024 * 1024)  /* 4 MB */

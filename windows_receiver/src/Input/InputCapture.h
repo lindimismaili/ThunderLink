@@ -43,12 +43,17 @@ private:
     void EmitEvent(const InputEvent& event);
     void UpdateCursorClip();
 
+    /* True if input should be forwarded right now: the window is focused AND the
+     * ImGui overlay isn't capturing this input class. */
+    bool InputAllowed(bool isMouse) const;
+
+    /* Normalized [0,1] position of the OS cursor over the client (video) area.
+     * This is the absolute mapping: where the cursor is on the screenshare
+     * window translates directly to the Mac screen. */
+    bool CurrentClientCursor(float& nx, float& ny) const;
+
     InputCallback m_callback;
     HWND m_hwnd = nullptr;
-
-    /* Accumulated cursor position (for relative mouse input) */
-    int m_cursorX = 0;
-    int m_cursorY = 0;
 
     uint32_t m_windowWidth = 1920;
     uint32_t m_windowHeight = 1080;

@@ -101,6 +101,13 @@ void FrameReceiver::ReceiveThread() {
 
         const uint8_t* payload = buffer + TLNK_HEADER_SIZE;
 
+        if (!m_firstPacketLogged) {
+            m_firstPacketLogged = true;
+            LOG_INFO("FrameReceiver: first video packet received "
+                     "(frame_id=%llu, total_packets=%u, %d bytes on wire)",
+                     (unsigned long long)header->frame_id, header->total_packets, received);
+        }
+
         /* Insert into frame buffer for reassembly */
         m_frameBuffer->InsertPacket(*header, payload);
 

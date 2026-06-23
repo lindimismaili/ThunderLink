@@ -8,6 +8,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Prevent Windows header pollution
 add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX -DUNICODE -D_UNICODE)
 
+# Repo root + shared cross-device log directory (logs/windows.log).
+get_filename_component(TLNK_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+file(MAKE_DIRECTORY "${TLNK_REPO_ROOT}/logs")
+
 # ---------- Dependencies ----------
 
 include(FetchContent)
@@ -39,24 +43,24 @@ set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
 file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
 
-# Find DXC shader compiler
-find_program(DXC_EXECUTABLE dxc
-    HINTS
-        "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64"
-        "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22000.0/x64"
-        "C:/Program Files (x86)/Windows Kits/10/bin/10.0.19041.0/x64"
-    PATH_SUFFIXES x64
+# Find a shader compiler (dxc preferred, fxc fallback). Search every installed
+# Windows 10/11 SDK bin version rather than a hard-coded list.
+file(GLOB WINSDK_BIN_DIRS
+    "C:/Program Files (x86)/Windows Kits/10/bin/10.*/x64"
+    "C:/Program Files/Windows Kits/10/bin/10.*/x64"
 )
+
+find_program(DXC_EXECUTABLE dxc HINTS ${WINSDK_BIN_DIRS})
 
 if(NOT DXC_EXECUTABLE)
     # Fallback to fxc if dxc is not available
-    find_program(FXC_EXECUTABLE fxc
-        HINTS
-            "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22621.0/x64"
-            "C:/Program Files (x86)/Windows Kits/10/bin/10.0.22000.0/x64"
-            "C:/Program Files (x86)/Windows Kits/10/bin/10.0.19041.0/x64"
-        PATH_SUFFIXES x64
-    )
+    find_program(FXC_EXECUTABLE fxc HINTS ${WINSDK_BIN_DIRS})
+endif()
+
+if(DXC_EXECUTABLE)
+    message(STATUS "Shader compiler: ${DXC_EXECUTABLE}")
+elseif(FXC_EXECUTABLE)
+    message(STATUS "Shader compiler: ${FXC_EXECUTABLE}")
 endif()
 
 if(DXC_EXECUTABLE)
@@ -163,14 +167,25 @@ target_link_libraries(ThunderLinkReceiver PRIVATE
     nlohmann_json::nlohmann_json
 )
 
-# Pass shader output directory as a define
+# Pass shader output directory + cross-device log path as defines
 target_compile_definitions(ThunderLinkReceiver PRIVATE
     SHADER_DIR=L"${SHADER_OUTPUT_DIR}"
+    TLNK_LOG_FILE="${TLNK_REPO_ROOT}/logs/windows.log"
 )
 
 if(DXC_EXECUTABLE OR FXC_EXECUTABLE)
     add_dependencies(ThunderLinkReceiver Shaders)
 endif()
+
+# Always copy the shader SOURCES into the output shader dir so the runtime
+# D3DCompileFromFile fallback works even when no dxc/fxc is available. The exe
+# runs with build/ as its working directory, so it resolves "shaders/*.hlsl".
+add_custom_command(TARGET ThunderLinkReceiver POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${SHADER_DIR}/vertex.hlsl ${SHADER_DIR}/pixel.hlsl ${SHADER_OUTPUT_DIR}
+    COMMENT "Copying shader sources for runtime fallback"
+)
 
 # MSVC-specific settings
 if(MSVC)

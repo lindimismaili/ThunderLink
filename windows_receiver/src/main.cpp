@@ -58,6 +58,14 @@ void ParseCommandLine(thunderlink::Config& cfg) {
                 cfg.height = (uint32_t)_wtoi(v.substr(x + 1).c_str());
             }
         }
+        else if (flag == L"--window" && needsValue(i)) {
+            std::wstring v = argv[++i];
+            size_t x = v.find_first_of(L"xX");
+            if (x != std::wstring::npos) {
+                cfg.windowWidth  = (uint32_t)_wtoi(v.substr(0, x).c_str());
+                cfg.windowHeight = (uint32_t)_wtoi(v.substr(x + 1).c_str());
+            }
+        }
         else if (flag == L"--fullscreen")                     { cfg.startFullscreen = true; }
     }
 
@@ -97,8 +105,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/,
         return 1;
     }
 
-    /* Initialize logging */
-    thunderlink::Logger::Init();
+    /* Initialize logging. Also append to the repo's cross-device log
+     * (logs/windows.log, path baked in by CMake) so it can be read on the Mac
+     * after a git sync; falls back to the working directory otherwise. */
+#ifdef TLNK_LOG_FILE
+    thunderlink::Logger::Init(TLNK_LOG_FILE);
+#else
+    thunderlink::Logger::Init("thunderlink_receiver.log");
+#endif
     LOG_INFO("ThunderLink Receiver starting up");
 
     /* Parse command-line endpoint/stream overrides into the global config */

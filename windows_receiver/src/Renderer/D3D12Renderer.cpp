@@ -1,6 +1,8 @@
 #include "D3D12Renderer.h"
 #include "Utils/Logger.h"
 
+#include "protocol.h"
+
 #include <d3dcompiler.h>
 #include <vector>
 #include <fstream>

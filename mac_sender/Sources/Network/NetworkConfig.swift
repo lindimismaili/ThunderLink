@@ -30,10 +30,14 @@ enum NetworkConfig {
     static var defaultFPS: Int = 60
 
     // MARK: Fixed protocol constants
-    static let mtu = 9000
+    // Standard 1500-byte Ethernet MTU (jumbo frames are usually off on
+    // USB-C->Ethernet adapters). Must match TLNK_MTU / TLNK_MAX_PAYLOAD in
+    // common/protocol.h. Oversized UDP datagrams get dropped by a non-jumbo
+    // link → black screen while TCP control/input still work.
+    static let mtu = 1500
     // Must match TLNK_HEADER_SIZE in common/protocol.h and sizeof(TlnkFrameHeader).
     static let headerSize = 40
-    static let maxPayload = 8192
+    static let maxPayload = 1400
 
     static let magic: UInt32 = 0x544C4E4B  // "TLNK"
     static let protocolVersion: UInt32 = 2

@@ -4,6 +4,7 @@
 #include "Utils/Logger.h"
 
 #include "input_event.h"
+#include "imgui.h"
 
 #include <vector>
 
@@ -37,13 +38,6 @@ bool InputCapture::Initialize(HWND hwnd, InputCallback callback) {
     if (!RegisterRawInputDevices(devices, 2, sizeof(RAWINPUTDEVICE))) {
         LOG_ERROR("InputCapture: RegisterRawInputDevices failed (err=%lu)", GetLastError());
         return false;
-    }
-
-    /* Initialize cursor to center of window */
-    RECT rect;
-    if (GetClientRect(hwnd, &rect)) {
-        m_cursorX = (rect.right - rect.left) / 2;
-        m_cursorY = (rect.bottom - rect.top) / 2;
     }
 
     LOG_INFO("InputCapture: RawInput registered");
@@ -129,88 +123,40 @@ void InputCapture::UpdateCursorClip() {
 }
 
 void InputCapture::ProcessMouse(const RAWMOUSE& mouse) {
-    /* Handle movement */
-    if (mouse.usFlags == MOUSE_MOVE_RELATIVE) {
-        m_cursorX += mouse.lLastX;
-        m_cursorY += mouse.lLastY;
+    if (!InputAllowed(true)) return;
 
-        /* Clamp to window bounds */
-        if (m_cursorX < 0) m_cursorX = 0;
-        if (m_cursorY < 0) m_cursorY = 0;
-        if (m_cursorX > (int)m_windowWidth) m_cursorX = (int)m_windowWidth;
-        if (m_cursorY > (int)m_windowHeight) m_cursorY = (int)m_windowHeight;
+    /* Absolute mapping: where the OS cursor sits over the client area. */
+    float nx = 0.0f, ny = 0.0f;
+    const bool havePos = CurrentClientCursor(nx, ny);
 
+    auto emitButton = [&](int button, int state) {
+        InputEvent event = {};
+        event.type = TLNK_INPUT_MOUSE_BUTTON;
+        event.button = button;
+        event.state = state;
+        event.x = nx;
+        event.y = ny;
+        EmitEvent(event);
+    };
+
+    /* Movement (relative deltas from RawInput just tell us it moved; the
+     * position itself comes from the real cursor over the window). */
+    if (havePos && (mouse.lLastX != 0 || mouse.lLastY != 0)) {
         InputEvent event = {};
         event.type = TLNK_INPUT_MOUSE_MOVE;
-        InputMapper::NormalizeMouseCoords(m_cursorX, m_cursorY,
-                                          m_windowWidth, m_windowHeight,
-                                          event.x, event.y);
+        event.x = nx;
+        event.y = ny;
         EmitEvent(event);
     }
 
-    /* Handle buttons */
-    if (mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) {
-        InputEvent event = {};
-        event.type = TLNK_INPUT_MOUSE_BUTTON;
-        event.button = TLNK_BUTTON_LEFT;
-        event.state = TLNK_STATE_DOWN;
-        InputMapper::NormalizeMouseCoords(m_cursorX, m_cursorY,
-                                          m_windowWidth, m_windowHeight,
-                                          event.x, event.y);
-        EmitEvent(event);
-    }
-    if (mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP) {
-        InputEvent event = {};
-        event.type = TLNK_INPUT_MOUSE_BUTTON;
-        event.button = TLNK_BUTTON_LEFT;
-        event.state = TLNK_STATE_UP;
-        InputMapper::NormalizeMouseCoords(m_cursorX, m_cursorY,
-                                          m_windowWidth, m_windowHeight,
-                                          event.x, event.y);
-        EmitEvent(event);
-    }
-    if (mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) {
-        InputEvent event = {};
-        event.type = TLNK_INPUT_MOUSE_BUTTON;
-        event.button = TLNK_BUTTON_RIGHT;
-        event.state = TLNK_STATE_DOWN;
-        InputMapper::NormalizeMouseCoords(m_cursorX, m_cursorY,
-                                          m_windowWidth, m_windowHeight,
-                                          event.x, event.y);
-        EmitEvent(event);
-    }
-    if (mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP) {
-        InputEvent event = {};
-        event.type = TLNK_INPUT_MOUSE_BUTTON;
-        event.button = TLNK_BUTTON_RIGHT;
-        event.state = TLNK_STATE_UP;
-        InputMapper::NormalizeMouseCoords(m_cursorX, m_cursorY,
-                                          m_windowWidth, m_windowHeight,
-                                          event.x, event.y);
-        EmitEvent(event);
-    }
-    if (mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) {
-        InputEvent event = {};
-        event.type = TLNK_INPUT_MOUSE_BUTTON;
-        event.button = TLNK_BUTTON_MIDDLE;
-        event.state = TLNK_STATE_DOWN;
-        InputMapper::NormalizeMouseCoords(m_cursorX, m_cursorY,
-                                          m_windowWidth, m_windowHeight,
-                                          event.x, event.y);
-        EmitEvent(event);
-    }
-    if (mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP) {
-        InputEvent event = {};
-        event.type = TLNK_INPUT_MOUSE_BUTTON;
-        event.button = TLNK_BUTTON_MIDDLE;
-        event.state = TLNK_STATE_UP;
-        InputMapper::NormalizeMouseCoords(m_cursorX, m_cursorY,
-                                          m_windowWidth, m_windowHeight,
-                                          event.x, event.y);
-        EmitEvent(event);
-    }
+    if (mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN)   emitButton(TLNK_BUTTON_LEFT,   TLNK_STATE_DOWN);
+    if (mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_UP)     emitButton(TLNK_BUTTON_LEFT,   TLNK_STATE_UP);
+    if (mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN)  emitButton(TLNK_BUTTON_RIGHT,  TLNK_STATE_DOWN);
+    if (mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_UP)    emitButton(TLNK_BUTTON_RIGHT,  TLNK_STATE_UP);
+    if (mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) emitButton(TLNK_BUTTON_MIDDLE, TLNK_STATE_DOWN);
+    if (mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)   emitButton(TLNK_BUTTON_MIDDLE, TLNK_STATE_UP);
 
-    /* Handle scroll wheel */
+    /* Scroll wheel */
     if (mouse.usButtonFlags & RI_MOUSE_WHEEL) {
         InputEvent event = {};
         event.type = TLNK_INPUT_SCROLL;
@@ -228,6 +174,8 @@ void InputCapture::ProcessMouse(const RAWMOUSE& mouse) {
 }
 
 void InputCapture::ProcessKeyboard(const RAWKEYBOARD& keyboard) {
+    if (!InputAllowed(false)) return;
+
     InputEvent event = {};
     event.type = TLNK_INPUT_KEY;
     event.keyCode = InputMapper::MapKeyCode(keyboard.VKey);
@@ -235,6 +183,38 @@ void InputCapture::ProcessKeyboard(const RAWKEYBOARD& keyboard) {
     event.modifiers = InputMapper::GetModifierState();
 
     EmitEvent(event);
+}
+
+bool InputCapture::InputAllowed(bool isMouse) const {
+    /* Only forward input while the screenshare window is the active window. */
+    if (!m_hasFocus) return false;
+
+    /* Don't forward input the ImGui overlay is consuming (e.g. clicking the
+     * stats panel or typing in it) — that would also drive the Mac. */
+    if (ImGui::GetCurrentContext() != nullptr) {
+        const ImGuiIO& io = ImGui::GetIO();
+        if (isMouse && io.WantCaptureMouse) return false;
+        if (!isMouse && io.WantCaptureKeyboard) return false;
+    }
+    return true;
+}
+
+bool InputCapture::CurrentClientCursor(float& nx, float& ny) const {
+    POINT p;
+    if (!m_hwnd || !GetCursorPos(&p)) return false;
+    if (!ScreenToClient(m_hwnd, &p)) return false;
+
+    RECT rc;
+    if (!GetClientRect(m_hwnd, &rc)) return false;
+    const int w = rc.right - rc.left;
+    const int h = rc.bottom - rc.top;
+    if (w <= 0 || h <= 0) return false;
+
+    float x = static_cast<float>(p.x) / static_cast<float>(w);
+    float y = static_cast<float>(p.y) / static_cast<float>(h);
+    nx = x < 0.0f ? 0.0f : (x > 1.0f ? 1.0f : x);
+    ny = y < 0.0f ? 0.0f : (y > 1.0f ? 1.0f : y);
+    return true;
 }
 
 void InputCapture::EmitEvent(const InputEvent& event) {

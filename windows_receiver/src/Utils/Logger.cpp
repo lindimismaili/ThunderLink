@@ -37,11 +37,16 @@ void Logger::Init(const char* logFile) {
 #endif
 
     if (logFile) {
+        /* Append so the cross-device log accumulates across runs. */
 #ifdef _WIN32
-        fopen_s(&s_file, logFile, "w");
+        fopen_s(&s_file, logFile, "a");
 #else
-        s_file = fopen(logFile, "w");
+        s_file = fopen(logFile, "a");
 #endif
+        if (s_file) {
+            fprintf(s_file, "\n===== ThunderLink Windows session start =====\n");
+            fflush(s_file);
+        }
     }
 
     s_initialized = true;

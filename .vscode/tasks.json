@@ -18,12 +18,22 @@
             "presentation": { "reveal": "always", "panel": "shared", "clear": true }
         },
         {
+            // Kill any running instance so the linker can overwrite the .exe.
+            // Succeeds whether or not it was running (PowerShell default shell).
+            "label": "Windows: Stop Receiver",
+            "type": "shell",
+            "command": "Stop-Process -Name ThunderLinkReceiver -Force -ErrorAction SilentlyContinue; exit 0",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": [],
+            "presentation": { "reveal": "silent", "panel": "shared" }
+        },
+        {
             "label": "Windows: Build (CMake Debug)",
             "type": "shell",
             "command": "cmake",
             "args": ["--build", "build", "--config", "Debug"],
             "options": { "cwd": "${workspaceFolder}" },
-            "dependsOn": ["Windows: Configure (CMake)"],
+            "dependsOn": ["Windows: Configure (CMake)", "Windows: Stop Receiver"],
             "dependsOrder": "sequence",
             "problemMatcher": ["$msCompile"],
             "group": "build",

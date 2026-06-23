@@ -30,6 +30,10 @@ final class TLLogger {
     private let osLog = os.Logger(subsystem: "com.thunderlink.sender", category: "general")
     private let queue = DispatchQueue(label: "com.thunderlink.logger")
 
+    // Appends to the repo's cross-device log (logs/mac.log) so it can be read on
+    // Windows after a git sync. nil if the file couldn't be opened.
+    private let fileHandle: FileHandle? = TLLogger.openLogFile()
+
     func log(_ level: Level, _ message: String, file: String = #file, line: Int = #line) {
         guard level >= minLevel else { return }
 
@@ -50,7 +54,48 @@ final class TLLogger {
 
             // Also print to stdout for command-line visibility
             print(formatted)
+
+            // Append a timestamped line to the cross-device log file.
+            if let handle = self.fileHandle,
+               let data = ("[\(TLLogger.timestamp())] " + formatted + "\n").data(using: .utf8) {
+                try? handle.write(contentsOf: data)
+            }
         }
+    }
+
+    // MARK: - Cross-device file logging
+
+    /// `<repo>/logs/mac.log`, derived from this source file's location so it is
+    /// independent of the process working directory.
+    private static func repoLogFileURL() -> URL {
+        // #filePath here = <repo>/mac_sender/Sources/Utils/Logger.swift
+        let repo = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // Utils
+            .deletingLastPathComponent()   // Sources
+            .deletingLastPathComponent()   // mac_sender
+            .deletingLastPathComponent()   // <repo>
+        return repo.appendingPathComponent("logs").appendingPathComponent("mac.log")
+    }
+
+    private static func openLogFile() -> FileHandle? {
+        let url = repoLogFileURL()
+        let fm = FileManager.default
+        try? fm.createDirectory(at: url.deletingLastPathComponent(),
+                                withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: url.path) {
+            fm.createFile(atPath: url.path, contents: nil)
+        }
+        guard let handle = try? FileHandle(forWritingTo: url) else { return nil }
+        handle.seekToEndOfFile()
+        let header = "\n===== ThunderLink Mac session start: \(timestamp()) =====\n"
+        if let data = header.data(using: .utf8) { try? handle.write(contentsOf: data) }
+        return handle
+    }
+
+    private static func timestamp() -> String {
+        let df = DateFormatter()
+        df.dateFormat = "HH:mm:ss.SSS"
+        return df.string(from: Date())
     }
 
     func trace(_ msg: String, file: String = #file, line: Int = #line) {

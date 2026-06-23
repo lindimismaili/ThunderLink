@@ -29,9 +29,10 @@ Application::~Application() {
 bool Application::Initialize(int nCmdShow) {
     const auto& cfg = GetConfig();
 
-    /* Create window sized to the configured stream resolution */
+    /* Create the window at the (smaller) window size; the 1440p stream is
+     * downscaled to fit. */
     m_window = std::make_unique<Window>();
-    if (!m_window->Create(m_hInstance, nCmdShow, cfg.width, cfg.height)) {
+    if (!m_window->Create(m_hInstance, nCmdShow, cfg.windowWidth, cfg.windowHeight)) {
         LOG_ERROR("Application: window creation failed");
         return false;
     }
