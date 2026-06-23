@@ -50,6 +50,10 @@ private:
     bool InitImGui(HWND hwnd);
     void RenderImGui(ID3D12GraphicsCommandList* cmdList);
 
+    /* Aspect-preserving (letterboxed) viewport so the stream isn't stretched
+     * when its aspect ratio differs from the window. */
+    D3D12_VIEWPORT ComputeViewport() const;
+
     void MoveToNextFrame();
     void WaitForFence(UINT64 fenceValue);
 

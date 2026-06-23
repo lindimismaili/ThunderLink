@@ -186,8 +186,11 @@ void InputCapture::ProcessKeyboard(const RAWKEYBOARD& keyboard) {
 }
 
 bool InputCapture::InputAllowed(bool isMouse) const {
-    /* Only forward input while the screenshare window is the active window. */
-    if (!m_hasFocus) return false;
+    /* Only forward input while the screenshare window is the active (foreground)
+     * window. Checked live via GetForegroundWindow rather than a cached focus
+     * flag, because the window's first WM_SETFOCUS fires during creation before
+     * InputCapture is wired up, which would otherwise leave the flag stuck. */
+    if (GetForegroundWindow() != m_hwnd) return false;
 
     /* Don't forward input the ImGui overlay is consuming (e.g. clicking the
      * stats panel or typing in it) — that would also drive the Mac. */

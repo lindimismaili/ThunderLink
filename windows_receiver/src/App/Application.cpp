@@ -119,31 +119,53 @@ int Application::Run() {
             break; /* WM_QUIT received */
         }
 
-        /* (Re)create the decoder on this (render) thread if a new connection
-         * was negotiated by the control thread. */
+        /* Capture connection/codec changes from the control thread. */
         MaybeInitDecoder();
 
         /* Try to get a completed (reassembled) encoded frame */
         ReceivedFrame rf{};
-        if (m_decoder && m_frameBuffer->WaitForFrame(&rf, 1)) {
-            /* Detect a frame-id gap (loss) -> drop to keyframe to avoid corruption */
-            if (m_lastFrameId != 0 && rf.frameId != m_lastFrameId + 1) {
-                m_decoder->RequireKeyframe();
-                m_networkManager->RequestKeyframe();
+        if (m_frameBuffer->WaitForFrame(&rf, 1)) {
+            /* Create or rebuild the decoder for the frame's actual resolution.
+             * Driving this off the real frame dimensions handles the initial
+             * connection, "native", and runtime resolution changes uniformly. */
+            if (rf.width != 0 && rf.height != 0 &&
+                (!m_decoder || rf.width != m_decoderW || rf.height != m_decoderH)) {
+                LOG_INFO("Application: (re)building decoder for %ux%u (was %ux%u)",
+                         rf.width, rf.height, m_decoderW, m_decoderH);
+                m_decoder = CreateMediaFoundationDecoder();
+                if (m_decoder && m_decoder->Initialize(m_curCodec, rf.width, rf.height)) {
+                    m_decoderW = rf.width;
+                    m_decoderH = rf.height;
+                    m_lastFrameId = 0;
+                    m_networkManager->RequestKeyframe();
+                } else {
+                    m_decoder.reset();
+                }
             }
-            m_lastFrameId = rf.frameId;
 
-            DecodedFrame df{};
-            bool decoded = m_decoder->Decode(
-                rf.data, rf.size, (rf.flags & TLNK_FLAG_KEY_FRAME) != 0, &df);
-            m_frameBuffer->ReleaseFrame(rf.frameId);
+            if (m_decoder) {
+                /* Frame-id gap (loss) -> drop to keyframe to avoid corruption */
+                if (m_lastFrameId != 0 && rf.frameId != m_lastFrameId + 1) {
+                    m_decoder->RequireKeyframe();
+                    m_networkManager->RequestKeyframe();
+                }
+                m_lastFrameId = rf.frameId;
 
-            if (decoded) {
-                m_renderer->RenderFrame(df.yPlane, df.uvPlane, df.width, df.height,
-                                        df.yStride, df.uvStride);
-                m_perfMonitor->FrameRendered();
+                DecodedFrame df{};
+                bool decoded = m_decoder->Decode(
+                    rf.data, rf.size, (rf.flags & TLNK_FLAG_KEY_FRAME) != 0, &df);
+                m_frameBuffer->ReleaseFrame(rf.frameId);
+
+                if (decoded) {
+                    m_renderer->RenderFrame(df.yPlane, df.uvPlane, df.width, df.height,
+                                            df.yStride, df.uvStride);
+                    m_perfMonitor->FrameRendered();
+                } else {
+                    if (m_decoder->IsWaitingForKeyframe()) m_networkManager->RequestKeyframe();
+                    m_renderer->RenderLastFrame();
+                }
             } else {
-                if (m_decoder->IsWaitingForKeyframe()) m_networkManager->RequestKeyframe();
+                m_frameBuffer->ReleaseFrame(rf.frameId);
                 m_renderer->RenderLastFrame();
             }
         } else {
@@ -222,16 +244,17 @@ void Application::MaybeInitDecoder() {
         info = m_pendingInfo;
     }
 
-    m_decoder = CreateMediaFoundationDecoder();
-    if (!m_decoder || !m_decoder->Initialize(info.codec, info.width, info.height)) {
-        LOG_ERROR("Application: decoder init failed for %ux%u codec=%d",
-                  info.width, info.height, (int)info.codec);
-        m_decoder.reset();
-        return;
-    }
+    /* A new connection was negotiated. Record the codec and drop any existing
+     * decoder; the render loop lazily (re)creates it from the first frame's real
+     * dimensions, which also covers "native" and runtime resolution changes. */
+    m_curCodec = info.codec;
+    m_decoder.reset();
+    m_decoderW = 0;
+    m_decoderH = 0;
     m_lastFrameId = 0;
-    /* Decoder starts in "waiting for keyframe" state; ask the Mac for one now. */
     if (m_networkManager) m_networkManager->RequestKeyframe();
+    LOG_INFO("Application: connected (codec=%s); decoder will init on first frame",
+             (info.codec == TLNK_CODEC_HEVC ? "HEVC" : "H264"));
 }
 
 void Application::OnResize(uint32_t width, uint32_t height) {
@@ -263,10 +286,33 @@ void Application::DrawUI() {
 
         if (connected) {
             ConnectionInfo info = m_networkManager->GetConnectionInfo();
-            ImGui::Text("Stream: %ux%u @ %u fps", info.width, info.height, info.fps);
+            /* Show the actual decoded resolution (reflects runtime res changes). */
+            if (m_decoderW && m_decoderH) {
+                ImGui::Text("Stream: %ux%u @ %u fps", m_decoderW, m_decoderH, info.fps);
+            } else {
+                ImGui::Text("Stream: %ux%u @ %u fps", info.width, info.height, info.fps);
+            }
             ImGui::Text("Codec: %s   %u kbps",
                         (info.codec == TLNK_CODEC_HEVC ? "HEVC" : "H.264"), info.bitrateKbps);
             ImGui::Text("Peer latency: %.1f ms", m_networkManager->GetPeerLatency());
+
+            /* Resolution picker: tells the Mac to recapture at the chosen size.
+             * "Source (native)" (0x0) makes the Mac stream its native display res. */
+            static const char* kResLabels[] = {
+                "Source (native)", "3840 x 2160", "2560 x 1440", "1920 x 1080", "1280 x 720"
+            };
+            static const uint32_t kResDims[][2] = {
+                {0, 0}, {3840, 2160}, {2560, 1440}, {1920, 1080}, {1280, 720}
+            };
+            static int resIndex = 0; /* default Source (native) */
+            ImGui::SetNextItemWidth(150.0f);
+            if (ImGui::Combo("Resolution", &resIndex, kResLabels, IM_ARRAYSIZE(kResLabels))) {
+                const auto& info2 = m_networkManager->GetConnectionInfo();
+                uint32_t fps = info2.fps ? info2.fps : GetConfig().fps;
+                m_networkManager->RequestConfigure(kResDims[resIndex][0],
+                                                   kResDims[resIndex][1], fps);
+                LOG_INFO("Application: requested resolution %s", kResLabels[resIndex]);
+            }
         }
 
         if (m_perfMonitor) {

@@ -65,8 +65,11 @@ void FrameReceiver::Stop() {
 void FrameReceiver::ReceiveThread() {
     LOG_INFO("FrameReceiver: receive thread started");
 
-    /* Stack-allocated receive buffer - sized for jumbo frames */
-    uint8_t buffer[TLNK_MTU];
+    /* Receive buffer sized to the max UDP datagram so a sender/receiver chunk-
+     * size mismatch can never silently truncate a packet (recvfrom would drop
+     * an oversized datagram with WSAEMSGSIZE). The sender chunks to
+     * TLNK_MAX_PAYLOAD; this is just headroom. */
+    uint8_t buffer[65536];
 
     while (m_running.load()) {
         struct sockaddr_in sender;

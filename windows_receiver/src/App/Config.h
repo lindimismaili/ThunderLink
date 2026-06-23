@@ -27,9 +27,11 @@ struct Config {
     uint16_t    inputPort   = TLNK_PORT_INPUT;
     uint16_t    controlPort = TLNK_PORT_CONTROL;
 
-    /* Desired stream parameters (sent to the Mac in CONFIGURE) */
-    uint32_t  width        = 2560;
-    uint32_t  height       = 1440;
+    /* Desired stream parameters (sent to the Mac in CONFIGURE).
+     * 0x0 = "source/native": the Mac streams its native display resolution and
+     * doesn't change its screen. Pick a fixed size from the overlay to switch. */
+    uint32_t  width        = 0;
+    uint32_t  height       = 0;
     uint32_t  fps          = 60;
     TlnkCodec codec        = TLNK_CODEC_HEVC;  /* preferred; downgraded to H.264 if HEVC decode is unavailable */
     uint32_t  bitrateKbps  = 25000;            /* ~25 Mbps default for 1440p60 general use */

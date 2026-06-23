@@ -18,6 +18,16 @@ protocol ControlClientDelegate: AnyObject {
     /// Called when the receiver asks for an IDR (loss recovery). The encoder
     /// should force a keyframe on its next encoded frame.
     func controlClientDidRequestKeyframe(_ client: ControlClient)
+
+    /// Called when the receiver sends a CONFIGURE mid-stream (e.g. the user
+    /// picked a new resolution). Capture/encode should restart at the new size.
+    /// width/height of 0 means "source/native".
+    func controlClientDidReconfigure(_ client: ControlClient,
+                                     width: Int,
+                                     height: Int,
+                                     fps: Int,
+                                     codec: TlnkCodecSwift,
+                                     bitrateKbps: Int)
 }
 
 /// TCP control channel between the Mac sender and the Windows receiver.
@@ -184,6 +194,17 @@ final class ControlClient {
                 _ = sendJSON(pong)
             case .requestKeyframe:
                 delegate?.controlClientDidRequestKeyframe(self)
+            case .configure:
+                // Runtime reconfigure (e.g. resolution change from the toolbar).
+                let w = (msg[ControlField.width]  as? Int) ?? 0
+                let h = (msg[ControlField.height] as? Int) ?? 0
+                let f = (msg[ControlField.fps]    as? Int) ?? NetworkConfig.defaultFPS
+                let codecRaw = (msg[ControlField.codec] as? Int) ?? 1
+                let c: TlnkCodecSwift = (codecRaw == 0) ? .h264 : .hevc
+                let br = (msg[ControlField.bitrate] as? Int) ?? (NetworkConfig.defaultBitrateMbps * 1000)
+                logger.info("ControlClient: runtime CONFIGURE \(w)x\(h) @ \(f), codec=\(c)")
+                delegate?.controlClientDidReconfigure(self, width: w, height: h,
+                                                      fps: f, codec: c, bitrateKbps: br)
             case .stop, .bye:
                 logger.info("ControlClient: received STOP/BYE")
                 return

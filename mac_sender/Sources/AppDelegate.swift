@@ -74,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await screenCapture.stopCapture() }
         videoEncoder?.stop()
         videoEncoder = nil
+        DisplayController.restore()  // don't leave the Mac on a switched resolution
         frameSender.stop()
         inputReceiver.stop()
     }
@@ -88,62 +89,16 @@ extension AppDelegate: ControlClientDelegate {
                        fps: Int,
                        codec: TlnkCodecSwift,
                        bitrateKbps: Int) {
-        guard let display = displayManager.mainDisplay else {
-            logger.error("AppDelegate: no displays available; cannot start capture")
-            return
-        }
+        restartStreaming(requestedWidth: width, requestedHeight: height,
+                         fps: fps, codec: codec, bitrateKbps: bitrateKbps)
+    }
 
-        // The receiver normalizes mouse coordinates against the streamed
-        // resolution, so use that here. (Multi-display: this assumes the
-        // mainDisplay is the one being captured; revisit if CONFIGURE ever
-        // carries a display ID.)
-        inputInjector.setScreenSize(width: width, height: height)
-
-        // Build a fresh encoder for the negotiated parameters.
-        videoEncoder?.stop()
-        let encoder = VideoEncoder(width: width, height: height, fps: fps,
-                                   bitrateKbps: bitrateKbps, codec: codec)
-        let wireFormat = NetworkConfig.wireFormat(for: codec)
-        encoder?.onEncodedFrame = { [weak self] frame in
-            self?.frameSender.sendEncodedFrame(frame.data,
-                                               isKeyframe: frame.isKeyframe,
-                                               format: wireFormat,
-                                               width: frame.width,
-                                               height: frame.height)
-        }
-        videoEncoder = encoder
-
-        // Route captured NV12 buffers into the encoder.
-        captureBridge.onFrame = { [weak self] pixelBuffer, pts in
-            self?.videoEncoder?.encode(pixelBuffer, pts: pts)
-        }
-
-        // Update the menu-bar panel.
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            let s = self.statusController.state
-            s.connected = true
-            s.streaming = true
-            s.width = width
-            s.height = height
-            s.fps = fps
-            s.codec = (codec == .hevc) ? "HEVC" : "H.264"
-            s.bitrateKbps = bitrateKbps
-            self.statusController.refreshIcon()
-        }
-
-        Task { @MainActor in
-            // If reconnecting after a drop, stop any prior capture first.
-            await screenCapture.stopCapture()
-            do {
-                try await screenCapture.startCapture(display: display,
-                                                     width: width,
-                                                     height: height,
-                                                     fps: fps)
-            } catch {
-                logger.error("AppDelegate: startCapture failed: \(error)")
-            }
-        }
+    func controlClientDidReconfigure(_ client: ControlClient,
+                                     width: Int, height: Int, fps: Int,
+                                     codec: TlnkCodecSwift, bitrateKbps: Int) {
+        logger.info("AppDelegate: reconfiguring stream to \(width)x\(height) (0 = native)")
+        restartStreaming(requestedWidth: width, requestedHeight: height,
+                         fps: fps, codec: codec, bitrateKbps: bitrateKbps)
     }
 
     func controlClientDidStopStreaming(_ client: ControlClient) {
@@ -153,6 +108,7 @@ extension AppDelegate: ControlClientDelegate {
         }
         videoEncoder?.stop()
         videoEncoder = nil
+        DisplayController.restore()  // put the Mac display back if we changed it
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -164,6 +120,72 @@ extension AppDelegate: ControlClientDelegate {
 
     func controlClientDidRequestKeyframe(_ client: ControlClient) {
         videoEncoder?.requestKeyframe()
+    }
+
+    /// (Re)start capture + encode at the requested resolution.
+    ///
+    /// For a fixed size this switches the Mac's main display to a matching mode
+    /// (so the capture is native/crisp); for width/height == 0 it restores the
+    /// native mode and captures at that. Capture size and the input coordinate
+    /// space are both in display POINTS, so the Windows cursor maps 1:1.
+    private func restartStreaming(requestedWidth: Int, requestedHeight: Int,
+                                  fps: Int, codec: TlnkCodecSwift, bitrateKbps: Int) {
+        let (capW, capH) = DisplayController.apply(requestedWidth: requestedWidth,
+                                                   requestedHeight: requestedHeight)
+        guard capW >= 2, capH >= 2 else {
+            logger.error("AppDelegate: invalid capture size \(capW)x\(capH)")
+            return
+        }
+
+        // CGEvent positions are in display points; Windows sends normalized
+        // [0,1] over the video, so map against the same point size.
+        inputInjector.setScreenSize(width: capW, height: capH)
+
+        // Fresh encoder for the (possibly new) parameters.
+        videoEncoder?.stop()
+        let encoder = VideoEncoder(width: capW, height: capH, fps: fps,
+                                   bitrateKbps: bitrateKbps, codec: codec)
+        let wireFormat = NetworkConfig.wireFormat(for: codec)
+        encoder?.onEncodedFrame = { [weak self] frame in
+            self?.frameSender.sendEncodedFrame(frame.data,
+                                               isKeyframe: frame.isKeyframe,
+                                               format: wireFormat,
+                                               width: frame.width,
+                                               height: frame.height)
+        }
+        videoEncoder = encoder
+
+        captureBridge.onFrame = { [weak self] pixelBuffer, pts in
+            self?.videoEncoder?.encode(pixelBuffer, pts: pts)
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let s = self.statusController.state
+            s.connected = true
+            s.streaming = true
+            s.width = capW
+            s.height = capH
+            s.fps = fps
+            s.codec = (codec == .hevc) ? "HEVC" : "H.264"
+            s.bitrateKbps = bitrateKbps
+            self.statusController.refreshIcon()
+        }
+
+        Task { @MainActor in
+            await screenCapture.stopCapture()
+            try? await displayManager.refreshDisplays()
+            guard let display = displayManager.mainDisplay else {
+                logger.error("AppDelegate: no display available to capture")
+                return
+            }
+            do {
+                try await screenCapture.startCapture(display: display,
+                                                     width: capW, height: capH, fps: fps)
+            } catch {
+                logger.error("AppDelegate: startCapture failed: \(error)")
+            }
+        }
     }
 }
 

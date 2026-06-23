@@ -393,6 +393,38 @@ bool D3D12Renderer::CreateRootSignatureAndPSO() {
     return true;
 }
 
+D3D12_VIEWPORT D3D12Renderer::ComputeViewport() const {
+    const float winW = static_cast<float>(m_swapChain.GetWidth());
+    const float winH = static_cast<float>(m_swapChain.GetHeight());
+    const float texW = static_cast<float>(m_textureManager.GetTextureWidth());
+    const float texH = static_cast<float>(m_textureManager.GetTextureHeight());
+
+    D3D12_VIEWPORT vp = {};
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+
+    if (texW <= 0.0f || texH <= 0.0f || winW <= 0.0f || winH <= 0.0f) {
+        vp.Width = winW;
+        vp.Height = winH;
+        return vp;
+    }
+
+    const float winAspect = winW / winH;
+    const float texAspect = texW / texH;
+    if (texAspect > winAspect) {
+        /* stream is wider than window -> bars top/bottom */
+        vp.Width = winW;
+        vp.Height = winW / texAspect;
+    } else {
+        /* stream is taller/narrower -> bars left/right */
+        vp.Height = winH;
+        vp.Width = winH * texAspect;
+    }
+    vp.TopLeftX = (winW - vp.Width) * 0.5f;
+    vp.TopLeftY = (winH - vp.Height) * 0.5f;
+    return vp;
+}
+
 void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
                                 uint32_t width, uint32_t height,
                                 uint32_t yStride, uint32_t uvStride) {
@@ -442,14 +474,8 @@ void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
     const float clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     m_commandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 
-    /* Set viewport and scissor */
-    D3D12_VIEWPORT viewport = {};
-    viewport.TopLeftX = 0.0f;
-    viewport.TopLeftY = 0.0f;
-    viewport.Width = static_cast<float>(m_swapChain.GetWidth());
-    viewport.Height = static_cast<float>(m_swapChain.GetHeight());
-    viewport.MinDepth = 0.0f;
-    viewport.MaxDepth = 1.0f;
+    /* Aspect-preserving (letterboxed) viewport */
+    D3D12_VIEWPORT viewport = ComputeViewport();
     m_commandList->RSSetViewports(1, &viewport);
 
     D3D12_RECT scissor = {};
@@ -522,10 +548,7 @@ void D3D12Renderer::RenderLastFrame() {
     const float clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     m_commandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 
-    D3D12_VIEWPORT viewport = {};
-    viewport.Width = static_cast<float>(m_swapChain.GetWidth());
-    viewport.Height = static_cast<float>(m_swapChain.GetHeight());
-    viewport.MaxDepth = 1.0f;
+    D3D12_VIEWPORT viewport = ComputeViewport();
     m_commandList->RSSetViewports(1, &viewport);
 
     D3D12_RECT scissor = {};

@@ -59,6 +59,12 @@ private:
     bool m_pendingDecoderInit = false;
     ConnectionInfo m_pendingInfo{};
 
+    /* Resolution the decoder is currently built for; the render loop rebuilds it
+     * when the incoming stream resolution changes (e.g. user picks a new res). */
+    uint32_t m_decoderW = 0;
+    uint32_t m_decoderH = 0;
+    TlnkCodec m_curCodec = TLNK_CODEC_HEVC;
+
     uint64_t m_lastFrameId = 0;
     bool m_streaming = false;
 };
