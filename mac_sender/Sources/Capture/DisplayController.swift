@@ -33,6 +33,13 @@ enum DisplayController {
         return (max(cw, 2), max(ch, 2))
     }
 
+    /// Point size of the main display (the CGEvent coordinate space used for
+    /// input injection, regardless of which display is being captured).
+    static func mainPointSize() -> (width: Int, height: Int) {
+        let b = CGDisplayBounds(displayID)
+        return (max(Int(b.width), 1), max(Int(b.height), 1))
+    }
+
     /// Restore the mode captured before the first switch. No-op if unchanged.
     static func restore() {
         guard let mode = originalMode else { return }
