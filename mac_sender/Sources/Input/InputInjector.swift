@@ -8,6 +8,11 @@ final class InputInjector {
     private var screenWidth: Int = 1920
     private var screenHeight: Int = 1080
 
+    /// Mouse buttons currently held down (TLNK button indices). Used to emit
+    /// drag events while moving with a button down — otherwise macOS treats it
+    /// as a plain move and click-and-drag doesn't work.
+    private var pressedButtons = Set<Int>()
+
     func setScreenSize(width: Int, height: Int) {
         screenWidth = width
         screenHeight = height
@@ -43,6 +48,7 @@ final class InputInjector {
                                                  screenWidth: screenWidth,
                                                  screenHeight: screenHeight)
             let isDown = (state == "down")
+            if isDown { pressedButtons.insert(button) } else { pressedButtons.remove(button) }
             injectMouseButton(at: point, button: button, isDown: isDown)
 
         case "key":
@@ -67,10 +73,26 @@ final class InputInjector {
 
     private func injectMouseMove(to point: CGPoint) {
         lastMouseLocation = point
+
+        // If a button is held, this is a DRAG: macOS needs a dragged event of
+        // the matching type, otherwise the drag is ignored.
+        let type: CGEventType
+        let button: CGMouseButton
+        if let held = pressedButtons.first {
+            switch held {
+            case 0: type = .leftMouseDragged;  button = .left
+            case 1: type = .rightMouseDragged; button = .right
+            default: type = .otherMouseDragged; button = .center
+            }
+        } else {
+            type = .mouseMoved
+            button = .left
+        }
+
         guard let event = CGEvent(mouseEventSource: nil,
-                                   mouseType: .mouseMoved,
+                                   mouseType: type,
                                    mouseCursorPosition: point,
-                                   mouseButton: .left) else { return }
+                                   mouseButton: button) else { return }
         event.post(tap: .cghidEventTap)
     }
 

@@ -136,9 +136,20 @@ extension AppDelegate: ControlClientDelegate {
         var capW: Int
         var capH: Int
         if captureMain {
-            // Switch/restore the MAIN display and capture at its point size.
-            (capW, capH) = DisplayController.apply(requestedWidth: requestedWidth,
-                                                   requestedHeight: requestedHeight)
+            if requestedWidth > 0 && requestedHeight > 0 {
+                // Best-effort: switch the display to a matching native mode (helps
+                // external monitors that actually have that mode). Regardless of
+                // whether the switch happens, capture at the REQUESTED size —
+                // ScreenCaptureKit scales the display to it — so the stream
+                // resolution always changes to what was picked.
+                DisplayController.apply(requestedWidth: requestedWidth,
+                                        requestedHeight: requestedHeight)
+                capW = requestedWidth & ~1
+                capH = requestedHeight & ~1
+            } else {
+                // "Source (native)": restore the display and capture native points.
+                (capW, capH) = DisplayController.apply(requestedWidth: 0, requestedHeight: 0)
+            }
         } else if let secondary = displayManager.display(at: dispIndex) {
             // Capturing a secondary/virtual display (e.g. BetterDisplay): leave
             // the main display alone, capture the chosen display at its native size.
