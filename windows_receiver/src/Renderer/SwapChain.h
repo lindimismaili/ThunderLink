@@ -18,8 +18,15 @@ public:
                     HWND hwnd, uint32_t width, uint32_t height);
     void Shutdown();
 
-    /* Present the current back buffer. syncInterval=0 + tearing for lowest latency. */
+    /* Present the current back buffer. Default: syncInterval=0 + tearing for
+     * lowest latency. With vsync enabled: syncInterval=1, no tearing (stable
+     * refresh, no tearing/flicker, ~1 frame more latency). */
     void Present();
+
+    /* Toggle vsync at runtime (from the overlay). Cheap: no swapchain rebuild,
+     * only the next Present()'s sync interval / tearing flag changes. */
+    void SetVSync(bool enabled) { m_vsync = enabled; }
+    bool GetVSync() const { return m_vsync; }
 
     /* Resize swap chain buffers (call when window resizes) */
     bool Resize(uint32_t width, uint32_t height);
@@ -50,6 +57,7 @@ private:
     uint32_t m_width = 0;
     uint32_t m_height = 0;
     bool m_tearingSupported = false;
+    bool m_vsync = false;
 
     ID3D12Device* m_device = nullptr; /* Non-owning */
 };

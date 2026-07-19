@@ -29,7 +29,8 @@ std::string WideToUtf8(const wchar_t* w) {
 /* Parse command-line overrides into the global Config. Recognized flags mirror
  * the Mac sender:
  *   --bind <ip> --peer <ip> --video-port <n> --control-port <n> --input-port <n>
- *   --codec h264|hevc --bitrate <Mbps> --fps <n> --res <WxH> --fullscreen
+ *   --codec h264|hevc --bitrate <Mbps> --fps <n> --res <WxH> --fullscreen --vsync
+ *   --console
  */
 void ParseCommandLine(thunderlink::Config& cfg) {
     int argc = 0;
@@ -67,6 +68,8 @@ void ParseCommandLine(thunderlink::Config& cfg) {
             }
         }
         else if (flag == L"--fullscreen")                     { cfg.startFullscreen = true; }
+        else if (flag == L"--vsync")                          { cfg.vsync = true; }
+        else if (flag == L"--console")                        { cfg.showConsole = true; }
     }
 
     LocalFree(argv);
@@ -105,18 +108,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/,
         return 1;
     }
 
+    /* Parse command-line overrides first so logging can honor --console. */
+    ParseCommandLine(thunderlink::GetConfig());
+
     /* Initialize logging. Also append to the repo's cross-device log
      * (logs/windows.log, path baked in by CMake) so it can be read on the Mac
-     * after a git sync; falls back to the working directory otherwise. */
+     * after a git sync; falls back to the working directory otherwise. The
+     * debug console is opt-in (--console); by default there's no terminal. */
 #ifdef TLNK_LOG_FILE
-    thunderlink::Logger::Init(TLNK_LOG_FILE);
+    thunderlink::Logger::Init(TLNK_LOG_FILE, thunderlink::GetConfig().showConsole);
 #else
-    thunderlink::Logger::Init("thunderlink_receiver.log");
+    thunderlink::Logger::Init("thunderlink_receiver.log", thunderlink::GetConfig().showConsole);
 #endif
     LOG_INFO("ThunderLink Receiver starting up");
 
-    /* Parse command-line endpoint/stream overrides into the global config */
-    ParseCommandLine(thunderlink::GetConfig());
     {
         const auto& c = thunderlink::GetConfig();
         LOG_INFO("Config: bind=%s peer=%s ports(v/i/c)=%u/%u/%u %ux%u@%u codec=%s %ukbps",

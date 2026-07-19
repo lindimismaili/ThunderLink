@@ -39,8 +39,12 @@ private:
     /* Render-thread: (re)create the decoder when a new connection is negotiated. */
     void MaybeInitDecoder();
 
-    /* Builds the ImGui overlay each frame (status / stats / controls). */
+    /* Builds the ImGui overlay each frame: a persistent top toolbar plus the
+     * toggleable Stats and Logs panels. F1 hides/shows the whole overlay. */
     void DrawUI();
+    void DrawToolbar(bool connected);
+    void DrawStatsPanel(bool connected);
+    void DrawLogsPanel();
 
     HINSTANCE m_hInstance;
 
@@ -67,6 +71,13 @@ private:
 
     uint64_t m_lastFrameId = 0;
     bool m_streaming = false;
+
+    /* Overlay UI state. F1 hides everything; the toolbar buttons toggle panels. */
+    bool  m_uiVisible     = true;
+    bool  m_showStats     = false;
+    bool  m_showLogs      = false;
+    bool  m_logAutoScroll = true;
+    float m_toolbarHeight = 40.0f;  /* measured each frame; positions panels below */
 };
 
 } // namespace thunderlink

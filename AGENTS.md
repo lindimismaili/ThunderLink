@@ -15,22 +15,23 @@ Two independent build systems, one shared C header directory:
 ## Commit & sync policy (cross-device project)
 
 This project is developed across **two machines** — the Mac sender and the Windows
-receiver — that share code through git. So, after completing a full update, bugfix,
-or new feature that **builds and is ready for testing**, **commit and sync
-automatically, without asking first**:
+receiver — that share code through git. **Do not commit, push, pull, or sync on your
+own — only when the user explicitly asks.** There is no auto-commit and no background
+auto-sync; the user drives all git operations.
+
+When the user *does* ask you to commit and/or sync:
 
 1. Stage only the intended changes. Do **not** commit secrets/`.env` or build output
    (`windows_receiver/build/`, `mac_sender/.build/`). The `logs/` files **are**
    tracked on purpose for cross-device debugging — see [logs/README.md](logs/README.md).
-2. Commit on the **current branch** with a concise, descriptive message.
-3. Sync with the remote: `git fetch`, `git pull --ff-only` if behind, then `git push`,
-   so the other machine can pull and test.
+2. Commit on the **current branch** with a concise, descriptive message. Never switch
+   branches or open PRs unless asked.
+3. Only sync (`git fetch`, `git pull --ff-only` if behind, then `git push`) when the
+   user asks to sync/push, so the other machine can pull and test.
 
-Only do this for a coherent, testable checkpoint — never for half-finished work, and
-never switch branches or open PRs as part of it. A change that touches the wire
-protocol must update **both** `common/` and the Swift mirror in
-[NetworkConfig.swift](mac_sender/Sources/Network/NetworkConfig.swift) in the same
-commit (see the wire-protocol note below), or the two machines will desync.
+A change that touches the wire protocol must update **both** `common/` and the Swift
+mirror in [NetworkConfig.swift](mac_sender/Sources/Network/NetworkConfig.swift) in the
+same commit (see the wire-protocol note below), or the two machines will desync.
 
 ## Build & Run
 

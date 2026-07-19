@@ -41,6 +41,18 @@ struct Config {
     uint32_t windowWidth  = 1280;
     uint32_t windowHeight = 720;
     bool startFullscreen = false;
+
+    /* Present with vsync (syncInterval=1, no tearing) instead of the default
+     * low-latency tearing present. Trades ~1 frame of latency for a stable
+     * refresh: stops screen tearing and the variable-refresh flicker that a
+     * fullscreen tearing swapchain provokes, and keeps Windows/NVIDIA from
+     * treating the receiver as a fullscreen game. Toggle live in the F1 overlay
+     * or start with --vsync. Off by default (lowest latency). */
+    bool vsync = false;
+
+    /* Show a debug console window. Opt-in via --console; off by default so a
+     * GUI launch doesn't pop up a terminal. Use the in-app Logs panel instead. */
+    bool showConsole = false;
 };
 
 /* Process-wide config. Populated once in main(), read everywhere else. */

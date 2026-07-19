@@ -16,24 +16,30 @@ LogLevel   Logger::s_level       = LogLevel::Info;
 FILE*      Logger::s_file        = nullptr;
 std::mutex Logger::s_mutex;
 bool       Logger::s_initialized = false;
+std::deque<LogEntry> Logger::s_recent;
 
-void Logger::Init(const char* logFile) {
+void Logger::Init(const char* logFile, bool allocConsole) {
     std::lock_guard<std::mutex> lock(s_mutex);
     if (s_initialized) return;
 
 #ifdef _WIN32
-    /* Allocate a console for GUI apps so we can see log output */
-    if (AllocConsole()) {
+    /* Optional debug console, opt-in via --console. Off by default so a GUI
+     * launch no longer pops up a terminal window — logs are available in-app
+     * via the Logs panel and in the log file. */
+    if (allocConsole && AllocConsole()) {
         FILE* dummy;
         freopen_s(&dummy, "CONOUT$", "w", stdout);
         freopen_s(&dummy, "CONOUT$", "w", stderr);
+
+        /* Enable ANSI colors on Windows 10+ */
+        HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD mode = 0;
+        if (GetConsoleMode(hOut, &mode)) {
+            SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        }
     }
-    /* Enable ANSI colors on Windows 10+ */
-    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD mode = 0;
-    if (GetConsoleMode(hOut, &mode)) {
-        SetConsoleMode(hOut, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-    }
+#else
+    (void)allocConsole;
 #endif
 
     if (logFile) {
@@ -100,20 +106,32 @@ void Logger::Log(LogLevel level, const char* file, int line, const char* fmt, ..
     vsnprintf(msgBuf, sizeof(msgBuf), fmt, args);
     va_end(args);
 
+    /* Compose the full line once, then fan it out to console/file/panel. */
+    char lineBuf[2200];
+    snprintf(lineBuf, sizeof(lineBuf), "[%s] [%-5s] %s:%d - %s",
+             timeStr, LevelToString(level), filename, line, msgBuf);
+
     std::lock_guard<std::mutex> lock(s_mutex);
 
     /* Console output with color */
     SetConsoleColor(level);
-    fprintf(stderr, "[%s] [%-5s] %s:%d - %s\n",
-            timeStr, LevelToString(level), filename, line, msgBuf);
+    fprintf(stderr, "%s\n", lineBuf);
     ResetConsoleColor();
 
     /* File output (no color) */
     if (s_file) {
-        fprintf(s_file, "[%s] [%-5s] %s:%d - %s\n",
-                timeStr, LevelToString(level), filename, line, msgBuf);
+        fprintf(s_file, "%s\n", lineBuf);
         fflush(s_file);
     }
+
+    /* In-memory ring buffer for the Logs overlay */
+    s_recent.push_back(LogEntry{ level, lineBuf });
+    if (s_recent.size() > kMaxRecent) s_recent.pop_front();
+}
+
+std::vector<LogEntry> Logger::GetRecentLogs() {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    return std::vector<LogEntry>(s_recent.begin(), s_recent.end());
 }
 
 const char* Logger::LevelToString(LogLevel level) {

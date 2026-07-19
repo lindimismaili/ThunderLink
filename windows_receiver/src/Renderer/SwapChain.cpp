@@ -1,5 +1,6 @@
 #include "SwapChain.h"
 #include "Utils/Logger.h"
+#include "App/Config.h"
 
 namespace thunderlink {
 
@@ -14,6 +15,7 @@ bool SwapChain::Initialize(IDXGIFactory6* factory, ID3D12CommandQueue* commandQu
                            HWND hwnd, uint32_t width, uint32_t height) {
     m_width = width;
     m_height = height;
+    m_vsync = GetConfig().vsync;
 
     /* Check tearing support */
     BOOL tearingSupported = FALSE;
@@ -101,10 +103,17 @@ void SwapChain::Shutdown() {
 }
 
 void SwapChain::Present() {
-    UINT syncInterval = 0;
-    UINT flags = 0;
-    if (m_tearingSupported) {
-        flags = DXGI_PRESENT_ALLOW_TEARING;
+    UINT syncInterval;
+    UINT flags;
+    if (m_vsync) {
+        /* Block until vblank; no tearing flag (ALLOW_TEARING is invalid with a
+         * non-zero sync interval). Stable refresh — no tearing/flicker. */
+        syncInterval = 1;
+        flags = 0;
+    } else {
+        /* Lowest latency: present immediately, tear where supported. */
+        syncInterval = 0;
+        flags = m_tearingSupported ? DXGI_PRESENT_ALLOW_TEARING : 0;
     }
 
     HRESULT hr = m_swapChain->Present(syncInterval, flags);

@@ -16,6 +16,9 @@
 
 #include "protocol.h"
 
+#include <string>
+#include <vector>
+
 namespace thunderlink {
 
 Application::Application(HINSTANCE hInstance)
@@ -268,19 +271,115 @@ void Application::OnResize(uint32_t width, uint32_t height) {
     }
 }
 
-void Application::DrawUI() {
-    /* F1 toggles the overlay. NewFrame always runs, so key state is current
-     * even while the panel is hidden. */
-    static bool visible = true;
-    if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) visible = !visible;
-    if (!visible) return;
+namespace {
+/* Text color for a log line by severity (mirrors the console color intent). */
+ImVec4 LogLevelColor(LogLevel level) {
+    switch (level) {
+        case LogLevel::Trace: return ImVec4(0.55f, 0.57f, 0.60f, 1.0f);
+        case LogLevel::Debug: return ImVec4(0.72f, 0.74f, 0.78f, 1.0f);
+        case LogLevel::Info:  return ImVec4(0.45f, 0.85f, 0.55f, 1.0f);
+        case LogLevel::Warn:  return ImVec4(0.95f, 0.80f, 0.30f, 1.0f);
+        case LogLevel::Error: return ImVec4(0.95f, 0.40f, 0.40f, 1.0f);
+        case LogLevel::Fatal: return ImVec4(1.00f, 0.35f, 0.35f, 1.0f);
+    }
+    return ImVec4(0.92f, 0.93f, 0.95f, 1.0f);
+}
+} // namespace
 
-    const auto& cfg = GetConfig();
+void Application::DrawUI() {
+    /* F1 hides/shows the entire overlay (toolbar + panels) for an unobstructed
+     * view. NewFrame always runs, so the key state stays current while hidden. */
+    if (ImGui::IsKeyPressed(ImGuiKey_F1, false)) m_uiVisible = !m_uiVisible;
+    if (!m_uiVisible) return;
+
     const bool connected = m_networkManager && m_networkManager->IsConnected();
 
-    ImGui::SetNextWindowPos(ImVec2(12, 12), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowBgAlpha(0.65f);
-    if (ImGui::Begin("ThunderLink", nullptr,
+    DrawToolbar(connected);
+    if (m_showStats) DrawStatsPanel(connected);
+    if (m_showLogs)  DrawLogsPanel();
+}
+
+void Application::DrawToolbar(bool connected) {
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos);
+    ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.88f);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+    if (ImGui::Begin("##toolbar", nullptr, flags)) {
+        m_toolbarHeight = ImGui::GetWindowSize().y;
+
+        /* Status dot + title on the left. */
+        const ImVec4 dot = connected ? ImVec4(0.30f, 0.85f, 0.42f, 1.0f)
+                                     : ImVec4(0.95f, 0.75f, 0.25f, 1.0f);
+        ImGui::AlignTextToFramePadding();
+        const float radius = ImGui::GetFontSize() * 0.32f;
+        const ImVec2 cur = ImGui::GetCursorScreenPos();
+        const ImVec2 center(cur.x + radius, cur.y + ImGui::GetTextLineHeight() * 0.5f);
+        ImGui::GetWindowDrawList()->AddCircleFilled(
+            center, radius, ImGui::ColorConvertFloat4ToU32(dot), 20);
+        ImGui::Dummy(ImVec2(radius * 2.0f + 8.0f, 0.0f));
+        ImGui::SameLine();
+        ImGui::TextUnformatted("ThunderLink");
+        ImGui::SameLine();
+        ImGui::TextColored(dot, "%s", connected ? "Connected" : "Waiting for Mac");
+
+        /* Right-aligned button cluster: Show Logs / Show Stats Overlay / Close. */
+        const ImGuiStyle& st = ImGui::GetStyle();
+        auto btnW = [&](const char* label) {
+            return ImGui::CalcTextSize(label).x + st.FramePadding.x * 2.0f;
+        };
+        const char* kLogs  = "Show Logs";
+        const char* kStats = "Show Stats Overlay";
+        const char* kClose = "Close";
+        const float cluster = btnW(kLogs) + btnW(kStats) + btnW(kClose) +
+                              st.ItemSpacing.x * 2.0f;
+
+        ImGui::SameLine();
+        const float rightX = ImGui::GetWindowContentRegionMax().x - cluster;
+        if (rightX > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(rightX);
+
+        auto toggleBtn = [&](const char* label, bool active) {
+            if (active) {
+                ImGui::PushStyleColor(ImGuiCol_Button,
+                                      ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+            }
+            const bool clicked = ImGui::Button(label);
+            if (active) ImGui::PopStyleColor();
+            return clicked;
+        };
+
+        if (toggleBtn(kLogs, m_showLogs))   m_showLogs  = !m_showLogs;
+        ImGui::SameLine();
+        if (toggleBtn(kStats, m_showStats)) m_showStats = !m_showStats;
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.82f, 0.26f, 0.26f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.68f, 0.18f, 0.18f, 1.0f));
+        if (ImGui::Button(kClose) && m_window) {
+            PostMessageW(m_window->GetHandle(), WM_CLOSE, 0, 0);
+        }
+        ImGui::PopStyleColor(2);
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+}
+
+void Application::DrawStatsPanel(bool connected) {
+    const auto& cfg = GetConfig();
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + 12.0f,
+                                   vp->WorkPos.y + m_toolbarHeight + 10.0f),
+                            ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowBgAlpha(0.85f);
+    if (ImGui::Begin("Stats", &m_showStats,
                      ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoNav |
                      ImGuiWindowFlags_NoFocusOnAppearing)) {
 
@@ -332,10 +431,52 @@ void Application::DrawUI() {
         }
 
         ImGui::Separator();
+        if (m_renderer) {
+            bool vsync = m_renderer->GetVSync();
+            if (ImGui::Checkbox("VSync (fix tearing / flicker)", &vsync)) {
+                m_renderer->SetVSync(vsync);
+                LOG_INFO("Application: vsync %s", vsync ? "on" : "off");
+            }
+        }
         if (ImGui::Button("Request keyframe") && m_networkManager) {
             m_networkManager->RequestKeyframe();
         }
-        ImGui::TextDisabled("F1 panel  -  F11 fullscreen  -  ESC release cursor");
+        ImGui::TextDisabled("F1 hide overlay  -  F11 fullscreen  -  ESC release cursor");
+    }
+    ImGui::End();
+}
+
+void Application::DrawLogsPanel() {
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    const float panelW = 720.0f;
+    ImGui::SetNextWindowSize(ImVec2(panelW, 360.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - (panelW + 12.0f),
+                                   vp->WorkPos.y + m_toolbarHeight + 10.0f),
+                            ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowBgAlpha(0.92f);
+    if (ImGui::Begin("Logs", &m_showLogs)) {
+        std::vector<LogEntry> logs = Logger::GetRecentLogs();
+
+        ImGui::Checkbox("Auto-scroll", &m_logAutoScroll);
+        ImGui::SameLine();
+        if (ImGui::Button("Copy")) {
+            std::string all;
+            for (const auto& e : logs) { all += e.text; all += '\n'; }
+            ImGui::SetClipboardText(all.c_str());
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("%d lines", (int)logs.size());
+        ImGui::Separator();
+
+        ImGui::BeginChild("##logscroll", ImVec2(0, 0), false,
+                          ImGuiWindowFlags_HorizontalScrollbar);
+        for (const auto& e : logs) {
+            ImGui::PushStyleColor(ImGuiCol_Text, LogLevelColor(e.level));
+            ImGui::TextUnformatted(e.text.c_str());
+            ImGui::PopStyleColor();
+        }
+        if (m_logAutoScroll) ImGui::SetScrollHereY(1.0f);
+        ImGui::EndChild();
     }
     ImGui::End();
 }

@@ -52,6 +52,63 @@ bool D3D12Renderer::Initialize(HWND hwnd, uint32_t width, uint32_t height) {
     return true;
 }
 
+namespace {
+/* A restrained, modern dark theme: rounded corners, generous padding, and a
+ * single teal-blue accent. Applied on top of StyleColorsDark(). */
+void ApplyModernImGuiStyle() {
+    ImGuiStyle& s = ImGui::GetStyle();
+
+    s.WindowRounding    = 8.0f;
+    s.ChildRounding     = 8.0f;
+    s.FrameRounding     = 6.0f;
+    s.PopupRounding     = 6.0f;
+    s.ScrollbarRounding = 8.0f;
+    s.GrabRounding      = 6.0f;
+    s.TabRounding       = 6.0f;
+
+    s.WindowPadding    = ImVec2(14, 12);
+    s.FramePadding     = ImVec2(12, 7);
+    s.ItemSpacing      = ImVec2(9, 9);
+    s.ItemInnerSpacing = ImVec2(8, 6);
+    s.ScrollbarSize    = 12.0f;
+    s.WindowBorderSize = 0.0f;
+    s.FrameBorderSize  = 0.0f;
+    s.WindowTitleAlign = ImVec2(0.0f, 0.5f);
+
+    const ImVec4 accent       = ImVec4(0.16f, 0.62f, 0.86f, 1.00f);
+    const ImVec4 accentHover  = ImVec4(0.22f, 0.70f, 0.94f, 1.00f);
+    const ImVec4 accentActive = ImVec4(0.11f, 0.51f, 0.74f, 1.00f);
+
+    ImVec4* c = s.Colors;
+    c[ImGuiCol_WindowBg]             = ImVec4(0.09f, 0.10f, 0.12f, 0.94f);
+    c[ImGuiCol_ChildBg]              = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    c[ImGuiCol_PopupBg]              = ImVec4(0.10f, 0.11f, 0.13f, 0.98f);
+    c[ImGuiCol_Border]               = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
+    c[ImGuiCol_FrameBg]              = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
+    c[ImGuiCol_FrameBgHovered]       = ImVec4(1.00f, 1.00f, 1.00f, 0.10f);
+    c[ImGuiCol_FrameBgActive]        = ImVec4(1.00f, 1.00f, 1.00f, 0.14f);
+    c[ImGuiCol_TitleBg]              = ImVec4(0.07f, 0.08f, 0.09f, 1.00f);
+    c[ImGuiCol_TitleBgActive]        = ImVec4(0.07f, 0.08f, 0.09f, 1.00f);
+    c[ImGuiCol_TitleBgCollapsed]     = ImVec4(0.07f, 0.08f, 0.09f, 0.80f);
+    c[ImGuiCol_Button]               = ImVec4(1.00f, 1.00f, 1.00f, 0.08f);
+    c[ImGuiCol_ButtonHovered]        = accentHover;
+    c[ImGuiCol_ButtonActive]         = accentActive;
+    c[ImGuiCol_Header]               = accent;
+    c[ImGuiCol_HeaderHovered]        = accentHover;
+    c[ImGuiCol_HeaderActive]         = accentActive;
+    c[ImGuiCol_CheckMark]            = accent;
+    c[ImGuiCol_SliderGrab]           = accent;
+    c[ImGuiCol_SliderGrabActive]     = accentActive;
+    c[ImGuiCol_ScrollbarBg]          = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    c[ImGuiCol_ScrollbarGrab]        = ImVec4(1.00f, 1.00f, 1.00f, 0.14f);
+    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(1.00f, 1.00f, 1.00f, 0.22f);
+    c[ImGuiCol_ScrollbarGrabActive]  = ImVec4(1.00f, 1.00f, 1.00f, 0.30f);
+    c[ImGuiCol_Separator]            = ImVec4(1.00f, 1.00f, 1.00f, 0.08f);
+    c[ImGuiCol_Text]                 = ImVec4(0.92f, 0.93f, 0.95f, 1.00f);
+    c[ImGuiCol_TextDisabled]         = ImVec4(0.55f, 0.57f, 0.60f, 1.00f);
+}
+} // namespace
+
 bool D3D12Renderer::InitImGui(HWND hwnd) {
     /* Dedicated shader-visible SRV heap for the ImGui font atlas. */
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
@@ -65,8 +122,17 @@ bool D3D12Renderer::InitImGui(HWND hwnd) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
+    ApplyModernImGuiStyle();
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr; /* don't write imgui.ini */
+
+    /* Scale the whole UI (sizes + font) for high-DPI displays so the toolbar
+     * and panels stay crisp and legible. */
+    float dpi = ImGui_ImplWin32_GetDpiScaleForHwnd(hwnd);
+    if (dpi > 1.0f) {
+        ImGui::GetStyle().ScaleAllSizes(dpi);
+        io.FontGlobalScale = dpi;
+    }
 
     if (!ImGui_ImplWin32_Init(hwnd)) return false;
     if (!ImGui_ImplDX12_Init(m_device.Get(), SwapChain::BUFFER_COUNT, SwapChain::FORMAT,

@@ -38,6 +38,12 @@ public:
 
     ID3D12Device* GetDevice() const { return m_device.Get(); }
 
+    /* Present pacing. vsync on = stable refresh / no tearing (fixes tearing and
+     * variable-refresh flicker); off = low-latency tearing. Toggled live from
+     * the overlay. */
+    void SetVSync(bool enabled) { m_swapChain.SetVSync(enabled); }
+    bool GetVSync() const { return m_swapChain.GetVSync(); }
+
     /* Callback invoked each frame between ImGui::NewFrame and ImGui::Render so
      * the app can build its overlay (status/stats/controls). */
     void SetUICallback(std::function<void()> cb) { m_uiCallback = std::move(cb); }
