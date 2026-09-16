@@ -32,4 +32,12 @@ Marin understood that the lantern had not repaired their machines or erased the 
 
 ## Final Verification — Windows
 
-> **Reserved for Aya (Windows):** Verify continuity, confirm both image links, and write the ending after the Mac contribution is complete.
+The paper boat slipped from the edge of Aya’s screen and landed beside her keyboard, dry despite the black water still shimmering behind it. She unfolded Marin’s reply and read his promise twice. Then she pressed three keys in the rhythm they both remembered.
+
+Three answering taps sounded at once.
+
+Aya checked the connection window. The status lights were ordinary again, steady and green, but the renewed link felt larger than any successful test. Marin had crossed when she asked, and she had waited when he answered. Distance remained; silence no longer did.
+
+She typed, *I’m here. Let’s keep the bridge open,* and watched the words reach his screen without flicker or delay.
+
+Outside, the rain thinned. Aya placed the returned boat beneath the lantern, where its folded paper caught the amber glow. Between the two screens, the last thread of light brightened into a narrow sunrise, pointing both of them toward whatever they would build next.
