@@ -204,3 +204,76 @@
 [01:56:56.635] [INFO] DisplayManager.swift:13 - DisplayManager: found 1 display(s)
 [01:56:56.635] [INFO] DisplayManager.swift:15 -   [0] 2056x1329 (ID: 1)
 [01:56:56.764] [INFO] ScreenCapture.swift:54 - ScreenCapture: started 2056x1328 @ 60 fps (NV12)
+
+===== ThunderLink Mac session start: 07:24:50.104 =====
+[07:24:50.106] [INFO] main.swift:25 - ThunderLinkSender config: peer=169.254.1.2 bind=169.254.1.1 codec=HEVC bitrate=25Mbps
+[07:24:50.192] [INFO] AppDelegate.swift:35 - ThunderLinkSender starting
+[07:24:50.258] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:50.259] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:50.295] [INFO] StatusController.swift:126 - Desktop window shown (visible=true, number=4094)
+[07:24:50.541] [INFO] CrossServer.swift:256 - Cross: TLS service listening on port 50004
+[07:24:51.260] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:51.260] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:52.261] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:52.261] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:53.262] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:53.263] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:54.263] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:54.263] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:55.264] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:55.264] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:56.265] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:56.266] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:57.266] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:57.267] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:58.268] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:58.268] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:24:59.269] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:24:59.269] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:00.270] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:00.271] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:01.271] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:01.271] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:02.272] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:02.273] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:03.274] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:03.274] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:04.275] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:04.275] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:05.276] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:05.277] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:06.277] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:06.277] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:07.278] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:07.278] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:08.279] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:08.279] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:09.280] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:09.280] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:10.281] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:10.281] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:11.281] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:11.281] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:12.282] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:12.283] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:13.283] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:13.284] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:14.285] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:14.285] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:15.286] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:15.287] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:16.297] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:16.297] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:30.573] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:30.573] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:30.859] [INFO] CrossServer.swift:256 - Cross: TLS service listening on port 50004
+[07:25:31.574] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:31.574] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:32.574] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:32.574] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:33.575] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:33.575] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:34.576] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:34.577] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
+[07:25:35.578] [ERROR] InputReceiver.swift:76 - InputReceiver: bind/listen failed (errno=49)
+[07:25:35.578] [ERROR] AppDelegate.swift:117 - AppDelegate: InputReceiver failed to start
