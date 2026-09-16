@@ -16,7 +16,17 @@ Aya smiled, opened a fresh message, and sent one precise request: **Marin, follo
 
 ## Middle Scene — Mac Contribution
 
-> **Placeholder for Marin (Mac):** Continue from Aya’s invitation. Write the middle scene here and include a brief reflection from Marin.
+Marin saw Aya’s request arrive as amber letters on his Mac, each word reflected in the black water beneath the paper boats. When he touched the trackpad, the lantern’s glow poured through the screen and formed a narrow bridge across the room. He stepped onto it before doubt could anchor him.
+
+The bridge carried him between sleeping windows: a half-written song, a map marked with old routes, and a photograph of Aya laughing beneath summer rain. Below, lost messages drifted like silver fish. Marin followed the three-tap rhythm until he reached a small island made from unsent drafts. At its center stood Aya’s paper boat, caught beneath a glass bell.
+
+He lifted the bell. The boat unfolded into a page bearing the sentence they had once promised never to forget: *A connection is not the distance disappearing; it is two people choosing to cross it.* Marin folded the page again, tucked his own reply inside, and set the boat on the shining thread.
+
+It sailed toward Aya. As the bridge dimmed, Marin tapped three times and watched the lantern answer from the other screen.
+
+### Marin’s Reflection
+
+Marin understood that the lantern had not repaired their machines or erased the miles between them. It had simply made their trust visible. Sending the boat back felt like an ordinary act, but that was its magic: every lasting bridge was built from small replies, offered faithfully across the dark.
 
 ![A paper boat crossing a bridge of light between two screens](images/02-light-bridge-paper-boat.png)
 
