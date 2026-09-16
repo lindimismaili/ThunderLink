@@ -31,9 +31,13 @@ Complete this gate before spawning the coder or monitor:
    detached HEAD or missing upstream.
 3. Check Git administrative state and stop if a merge, rebase, cherry-pick,
    revert, or bisect is unfinished.
-4. Fetch the configured upstream, then compute ahead and behind counts. Both
-   must be zero. Do not repair, pull, commit, push, switch, or merge during this
-   first gate. Tell the user exactly what must be reconciled and stop.
+4. Resolve the remote name separately from the upstream ref with
+   `git remote get-url <remote>` (for example, `origin` from `origin/main`),
+   then fetch that remote using `git fetch <remote>`. Never pass a qualified
+   upstream ref such as `origin/main` as the fetch remote argument. Compute
+   ahead and behind counts against the upstream ref; both must be zero. Do not
+   repair, pull, commit, push, switch, or merge during this first gate. Tell
+   the user exactly what must be reconciled and stop.
 5. Record the branch, upstream, and 40-character synchronized commit as the
    session baseline.
 
@@ -140,8 +144,10 @@ On `UPDATE_AVAILABLE`, the coordinator enters `SYNCING`:
 
 1. Confirm the branch and upstream still match the baseline, no Git operation
    is in progress, and the worktree and index are safe.
-2. Fetch the upstream again. Require the previous local commit to be an
-   ancestor of the new upstream and require local ahead count to be zero.
+2. Extract the remote name from the configured upstream ref and fetch it with
+   `git fetch <remote>`; do not use a qualified ref such as `origin/main` as
+   the remote argument. Require the previous local commit to be an ancestor of
+   the new upstream and require local ahead count to be zero.
 3. Fast-forward only. Do not create a merge commit, rebase, force, stash,
    discard changes, or resolve divergence automatically.
 4. If any command fails or any invariant differs, enter `STOPPED`, terminate
