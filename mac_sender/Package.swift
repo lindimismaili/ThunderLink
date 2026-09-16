@@ -7,6 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ThunderLinkSender",
+            dependencies: ["PowerSupport"],
             path: "Sources",
             linkerSettings: [
                 // System frameworks for hardware capture/encode/input + UI.
@@ -17,9 +18,12 @@ let package = Package(
                 .linkedFramework("CoreGraphics"),
                 .linkedFramework("ColorSync"),
                 .linkedFramework("AppKit"),
+                .linkedFramework("IOKit"),
                 .linkedFramework("SwiftUI")
             ]
         ),
-        .testTarget(name: "ThunderLinkSenderTests", dependencies: ["ThunderLinkSender"], path: "Tests")
+        .target(name: "PowerSupport", path: "PowerSupport", linkerSettings: [.linkedFramework("IOKit")]),
+        .executableTarget(name: "ThunderLinkPowerHelper", dependencies: ["PowerSupport"], path: "PowerHelper"),
+        .testTarget(name: "ThunderLinkSenderTests", dependencies: ["ThunderLinkSender", "PowerSupport"], path: "Tests")
     ]
 )

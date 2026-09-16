@@ -12,15 +12,19 @@ trap 'rm -rf "$staging"' EXIT HUP INT TERM
 app="$staging/ThunderLink.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" dist
 cp "$binary_dir/ThunderLinkSender" "$app/Contents/MacOS/ThunderLink"
+cp "$binary_dir/ThunderLinkPowerHelper" "$app/Contents/MacOS/ThunderLinkPowerHelper"
 cp packaging/ThunderLink.icns "$app/Contents/Resources/ThunderLink.icns"
 cp packaging/licenses/THIRD-PARTY-NOTICES.txt "$app/Contents/Resources/"
 sed "s/@VERSION@/$version/g" packaging/macos/Info.plist.in > "$app/Contents/Info.plist"
 plutil -lint "$app/Contents/Info.plist"
 # macOS 13 provides Swift and all linked Apple frameworks. Reject accidental
 # third-party/build-machine dependencies rather than shipping a broken bundle.
-otool -L "$app/Contents/MacOS/ThunderLink" | tail -n +2 | while IFS= read -r dependency; do
-    case "$dependency" in *'/System/Library/'*|*'/usr/lib/'*) ;; *) echo "Unbundled dependency: $dependency" >&2; exit 1;; esac
+for executable in ThunderLink ThunderLinkPowerHelper; do
+    otool -L "$app/Contents/MacOS/$executable" | tail -n +2 | while IFS= read -r dependency; do
+        case "$dependency" in *'/System/Library/'*|*'/usr/lib/'*) ;; *) echo "Unbundled dependency: $dependency" >&2; exit 1;; esac
+    done
 done
+codesign --force --sign - "$app/Contents/MacOS/ThunderLinkPowerHelper"
 codesign --force --sign - "$app"
 codesign --verify --strict --verbose=2 "$app"
 archive="dist/ThunderLink-$version-macos-arm64.zip"

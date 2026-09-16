@@ -39,6 +39,11 @@ final class AppState: ObservableObject {
     @Published var crossConfigured = false
     @Published var crossRemoteOwnership = false
     @Published var pairedPeers: [CrossPairedPeer] = []
+    @Published var keepAwakeOnPower = true
+    @Published var keepingAwake = false
+    @Published var powerSettingsError: String?
+    @Published var lidSleepStatus = "Closed-lid override needs administrator authorization."
+    @Published var lidSleepAuthorizedOrPending = false
 }
 
 /// One retained window; the status menu deliberately contains only Show and Quit.
@@ -48,6 +53,8 @@ final class StatusController: NSObject, NSWindowDelegate {
     var onToggleConnection: (() -> Void)?
     var onRestart: (() -> Void)?
     var onRefreshPermissions: (() -> Void)?
+    var onKeepAwakeChanged: ((Bool) -> Void)?
+    var onAuthorizeLidSleep: (() -> Void)?
     var onApprovePairing: (() -> Void)?
     var onRejectPairing: (() -> Void)?
     var onForgetPeer: ((String) -> Void)?
@@ -98,7 +105,9 @@ final class StatusController: NSObject, NSWindowDelegate {
             refreshPermissions: { [weak self] in self?.onRefreshPermissions?() },
             approvePairing: { [weak self] in self?.onApprovePairing?() },
             rejectPairing: { [weak self] in self?.onRejectPairing?() },
-            forgetPeer: { [weak self] in self?.onForgetPeer?($0) }))
+            forgetPeer: { [weak self] in self?.onForgetPeer?($0) },
+            keepAwakeChanged: { [weak self] in self?.onKeepAwakeChanged?($0) },
+            authorizeLidSleep: { [weak self] in self?.onAuthorizeLidSleep?() }))
         window.center()
         self.window = window
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(revealFromNotification(_:)), name: DesktopSettings.showNotification, object: nil)
@@ -179,12 +188,16 @@ struct DesktopView: View {
     var approvePairing: () -> Void
     var rejectPairing: () -> Void
     var forgetPeer: (String) -> Void
+    var keepAwakeChanged: (Bool) -> Void
+    var authorizeLidSleep: () -> Void
     @ObservedObject private var form: DesktopForm
 
     init(state: AppState, initialSection: String = "Connection", toggleConnection: @escaping () -> Void,
          restart: @escaping () -> Void, refreshPermissions: @escaping () -> Void,
          approvePairing: @escaping () -> Void = {}, rejectPairing: @escaping () -> Void = {},
-         forgetPeer: @escaping (String) -> Void = { _ in }) {
+         forgetPeer: @escaping (String) -> Void = { _ in },
+         keepAwakeChanged: @escaping (Bool) -> Void = { _ in },
+         authorizeLidSleep: @escaping () -> Void = {}) {
         self.state = state
         self.toggleConnection = toggleConnection
         self.restart = restart
@@ -192,6 +205,8 @@ struct DesktopView: View {
         self.approvePairing = approvePairing
         self.rejectPairing = rejectPairing
         self.forgetPeer = forgetPeer
+        self.keepAwakeChanged = keepAwakeChanged
+        self.authorizeLidSleep = authorizeLidSleep
         let form = DesktopForm()
         form.section = initialSection
         self.form = form
@@ -224,7 +239,7 @@ struct DesktopView: View {
                     Text(form.section.uppercased()).font(.system(size: 10, weight: .semibold)).tracking(2).foregroundStyle(Studio.accent)
                     Text(form.section == "Connection" ? (state.mode == .cross ? "One keyboard. Every display." : "Your Mac. On the big screen.") : form.section == "Settings" ? "Make the connection yours." : "Everything, in view.")
                         .font(.system(size: 27, weight: .semibold))
-                    Text(form.section == "Connection" ? (state.mode == .cross ? "Windows input is moving across your arranged Mac displays." : "Share your display with your Windows PC over a direct connection.") : form.section == "Settings" ? "Changes take effect after a safe restart." : "Connection details and local diagnostics.")
+                    Text(form.section == "Connection" ? (state.mode == .cross ? "Windows input is moving across your arranged Mac displays." : "Share your display with your Windows PC over a direct connection.") : form.section == "Settings" ? "Connection changes need a restart. Power preferences apply immediately." : "Connection details and local diagnostics.")
                         .foregroundStyle(.secondary)
                     if let error = state.configurationError {
                         card {
@@ -333,6 +348,20 @@ struct DesktopView: View {
     private var settings: some View {
         VStack(spacing: 18) {
             card {
+                Text("Power").font(.headline)
+                Toggle("Keep Mac awake, including with the lid closed", isOn: Binding(
+                    get: { state.keepAwakeOnPower }, set: { keepAwakeChanged($0) }))
+                Text("On AC power, keeps the Mac awake during Screen Share or Cross, even with this window hidden. Lid-close override needs administrator authorization once per app launch and also blocks manual Sleep. Turn this off to allow sleep again.")
+                    .font(.callout).foregroundStyle(.secondary)
+                HStack {
+                    Text(state.lidSleepStatus).font(.callout).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Authorize Closed-Lid Mode", action: authorizeLidSleep)
+                        .disabled(!state.keepAwakeOnPower || state.lidSleepAuthorizedOrPending)
+                }
+                if let error = state.powerSettingsError { Text(error).font(.callout).foregroundStyle(.orange) }
+            }
+            card {
                 Text("Connection").font(.headline)
                 field("Windows address", text: $form.peer)
                 field("Local bind address", text: $form.bind)
@@ -391,6 +420,8 @@ struct DesktopView: View {
             LabeledContent("Local address", value: NetworkConfig.macIP)
             LabeledContent("Peer address", value: state.peerIP)
             LabeledContent("Mode", value: state.mode.rawValue)
+            LabeledContent("Keep awake", value: state.keepingAwake ? "Active on AC power" : state.keepAwakeOnPower ? "Waiting for AC power and a session" : "Off")
+            LabeledContent("Lid-close override", value: state.lidSleepStatus)
             LabeledContent("Protocol", value: "v\(NetworkConfig.protocolVersion)")
             LabeledContent("Video / Input / Control / Cross", value: "\(NetworkConfig.videoPort) / \(NetworkConfig.inputPort) / \(NetworkConfig.controlPort) / \(NetworkConfig.crossPort)")
             if let interface = state.crossInterface { LabeledContent("Cross route", value: interface) }
@@ -412,7 +443,7 @@ struct DesktopView: View {
                         "--control-port", form.control, "--display", form.display, "--no-auto-ip",
                         "--codec", prior.codec == .hevc ? "hevc" : "h264", "--bitrate", String(prior.bitrateKbps / 1000),
                         "--fps", String(prior.fps), "--res", "\(prior.width)x\(prior.height)"]
-            try DesktopSettings.save(args)
+            try DesktopSettings.save(DesktopSettings.argumentsSettingKeepAwake(prior.keepAwakeOnPower, in: args))
             restart()
         } catch { form.settingsError = error.localizedDescription }
     }

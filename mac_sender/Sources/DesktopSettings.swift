@@ -41,6 +41,11 @@ enum DesktopSettings {
         return true
     }
 
+    static func argumentsSettingKeepAwake(_ enabled: Bool, in arguments: [String]) -> [String] {
+        arguments.filter { $0 != "--keep-awake" && $0 != "--no-keep-awake" }
+            + [enabled ? "--keep-awake" : "--no-keep-awake"]
+    }
+
     static func releaseInstance() {
         if lockDescriptor >= 0 { flock(lockDescriptor, LOCK_UN); close(lockDescriptor); lockDescriptor = -1 }
     }

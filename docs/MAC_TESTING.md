@@ -1,5 +1,41 @@
 # macOS Testing Protocol
 
+## Session power acceptance
+
+Automated `PowerTests` cover default/migrated preferences, atomic persistence,
+both session modes, disabled/disconnected/AC gates, acquisition/release failures,
+stale/future/malformed leases, battery/thermal rejection, and retaining cleanup
+responsibility after failed writes. They use injected services and never change
+the host's sleep policy. Native view previews cover the Power card at both
+supported window sizes. `scripts/package-mac.sh` bundles and signs the helper.
+
+Physical/admin acceptance remains separate from builds and unit tests:
+
+1. Check default-on preference on fresh and existing settings, live toggle,
+   saved relaunch, and no idle assertion while only waiting/pairing.
+2. In each mode, on AC, confirm an idle-display assertion via
+   `pmset -g assertions`; hide the window and verify the session continues.
+3. Cancel closed-lid authorization, retry, then approve. Confirm the helper is
+   merely ready before a session; during a session confirm status is active and
+   `ioreg -r -c IOPMrootDomain -d 1` reports `SleepDisabled = Yes`.
+4. Close the lid on AC while Windows receives video/input. Exercise an external
+   Mac display in Cross and Screen Share separately. Also test without an
+   external display, recording whether the selected display remains available.
+   Recheck arrangements after display removal; never bypass the lock gate.
+5. Unplug AC, disconnect, disable the option, quit, crash the app, and hang the
+   app main thread separately. Verify `SleepDisabled = No` after watchdog
+   cleanup, no continuing override on battery, and fresh authorization after a
+   stopped watchdog/app relaunch. Allow the four-second lease plus scheduling
+   and pmset execution (up to two seconds per attempt); failures must be visible.
+6. Exercise denied authorization, missing helper, pre-existing external
+   `SleepDisabled`, and two helper instances. No external override may be cleared.
+   Confirm an idle authorized helper makes no power change.
+7. Verify manual Sleep is available again after disabling/disconnecting. Test
+   helper SIGTERM cleanup. SIGKILL of the helper and abrupt system power loss
+   are explicit limitations requiring the recovery command in SETUP.md.
+
+Do not mark closed-lid operation verified until these physical checks pass.
+
 Use this protocol on a native Mac. A Mac-only result does not prove Windows
 decode/render behavior or complete end-to-end operation.
 

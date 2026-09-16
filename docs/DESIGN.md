@@ -43,6 +43,12 @@
   capture can work while input injection does not.
 - Quit and disconnect paths must stop capture/encoding and restore any display
   mode changed by the session.
+- Settings → Power defaults to keeping an AC-powered Mac awake for either
+  active session mode, including when the window is hidden. The saved toggle
+  applies live; connection settings still require restart. Show a separate
+  closed-lid authorization action and truthful waiting/active/error status.
+  Explain that the lid override also blocks manual Sleep. Never describe idle
+  sleep prevention alone as closed-lid protection.
 
 ## Windows Receiver
 

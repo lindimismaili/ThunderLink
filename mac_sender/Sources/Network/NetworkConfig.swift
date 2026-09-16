@@ -7,6 +7,8 @@ enum NetworkConfig {
     static var autoAssignIP = true
     static let linkSubnet = "255.255.255.0"
     static var captureDisplayIndex = 0
+    // Mac-local preference; not part of the peer wire contract.
+    static var keepAwakeOnPower = true
 
     static var videoPort: UInt16 = 50001
     static var inputPort: UInt16 = 50002
@@ -64,6 +66,7 @@ enum NetworkConfig {
         winIP = parsed.winIP
         autoAssignIP = parsed.autoAssignIP
         captureDisplayIndex = parsed.captureDisplayIndex
+        keepAwakeOnPower = parsed.keepAwakeOnPower
         videoPort = parsed.videoPort
         inputPort = parsed.inputPort
         controlPort = parsed.controlPort
@@ -83,6 +86,7 @@ enum TlnkCodecSwift: Int, Codable, Equatable, CustomStringConvertible {
 }
 
 struct RuntimeConfiguration: Equatable {
+    var keepAwakeOnPower = true
     var macIP = "169.254.1.1"
     var winIP = "169.254.1.2"
     var autoAssignIP = true
@@ -123,6 +127,10 @@ struct RuntimeConfiguration: Equatable {
                 result.macIP = value
             case "--no-auto-ip":
                 result.autoAssignIP = false
+            case "--keep-awake":
+                result.keepAwakeOnPower = true
+            case "--no-keep-awake":
+                result.keepAwakeOnPower = false
             case "--display":
                 let value = try value(after: flag)
                 guard let parsed = Int(value), parsed >= 0 else {

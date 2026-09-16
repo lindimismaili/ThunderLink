@@ -1,5 +1,38 @@
 # ThunderLink Architecture
 
+## Session power ownership
+
+`SessionPowerController` observes actual Screen Share streaming and Cross
+configured-session state, gated by the saved, default-on `keepAwakeOnPower`
+preference and the app's disconnected/paused state. It owns a process-scoped
+IOKit idle-display assertion while on AC. Power-source notifications and a
+retry timer release/reacquire it without restarting the app. This is local
+policy; no v4 wire contract changes are involved.
+
+Lid sleep is a separate privilege boundary. Apple's public idle assertions
+[explicitly allow lid-close sleep](https://developer.apple.com/documentation/iokit/kiopmassertiontypepreventuseridlesystemsleep),
+and the private `AppliesOnLidClose` property requires an Apple entitlement in
+[powerd](https://github.com/apple-oss-distributions/PowerManagement/blob/main/pmconfigd/PMAssertions.c).
+`LidSleepController` instead launches the bundled `ThunderLinkPowerHelper`
+through macOS administrator authorization, once per app launch on an explicit
+Settings action. It renews a four-second monotonic lease on the main run loop.
+
+The helper receives only a constrained, random temporary directory and owner
+UID. It opens the directory and bounded regular files with no symlink
+following, checks owner/mode/link count, and holds a system-wide lock. No client
+command, executable, or arbitrary mutation path is accepted. The sole privileged
+mutation is fixed `/usr/bin/pmset -a disablesleep 0|1`; successful exit status
+alone is insufficient, so the helper verifies `IOPMrootDomain.SleepDisabled`.
+Existing external overrides are rejected, preserving their configuration.
+
+The helper polls at 500 ms, independently gates on AC and thermal state, and
+releases on stale/malformed leases or termination signals. Failed/partial writes
+retain cleanup responsibility and restoration is retried until verified. The
+app revokes the lease on quit instead of killing the watchdog. Nothing is
+installed permanently. This handles app failure; SIGKILL/helper failure or an
+abrupt reboot during an override still requires administrator recovery as
+documented in SETUP.md. There is no boot-time recovery daemon.
+
 ThunderLink has two native processes: a macOS ScreenCaptureKit/VideoToolbox
 sender and a Windows Media Foundation/Direct3D 12 receiver. Both applications
 must use protocol **v4**; older versions are deliberately incompatible.

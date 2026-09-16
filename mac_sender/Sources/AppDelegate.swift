@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import CoreMedia
 import CoreVideo
+import Combine
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let displayManager = DisplayManager()
@@ -14,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let encoderPipeline = EncoderPipeline()
     private let statusController = StatusController()
     private let crossServer = CrossServer()
+    private let sessionPower = SessionPowerController()
+    private let lidSleep = LidSleepController()
+    private var powerStateSubscription: AnyCancellable?
     @MainActor private lazy var lifecycle = StreamLifecycleCoordinator(
         displayManager: displayManager, screenCapture: screenCapture,
         captureBridge: captureBridge, encoderPipeline: encoderPipeline,
@@ -39,6 +43,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.terminate(nil)
         }
         statusController.onRefreshPermissions = { [weak self] in self?.refreshPermissions() }
+        statusController.onKeepAwakeChanged = { [weak self] enabled in self?.setKeepAwake(enabled) }
+        statusController.onAuthorizeLidSleep = { [weak self] in self?.lidSleep.authorize() }
+        lidSleep.onStatus = { [weak self] message, busy in
+            self?.statusController.state.lidSleepStatus = message
+            self?.statusController.state.lidSleepAuthorizedOrPending = busy
+        }
+        sessionPower.onRequested = { [weak self] in self?.lidSleep.setRequested($0) }
+        statusController.state.keepAwakeOnPower = NetworkConfig.keepAwakeOnPower
+        sessionPower.setEnabled(NetworkConfig.keepAwakeOnPower)
+        sessionPower.onStatus = { [weak self] held in self?.statusController.state.keepingAwake = held }
+        powerStateSubscription = Publishers.CombineLatest3(statusController.state.$streaming,
+            statusController.state.$crossConfigured, statusController.state.$paused)
+            .sink { [weak self] streaming, cross, paused in
+                self?.sessionPower.setSessionActive(SessionPowerController.hasActiveSession(
+                    streaming: streaming, crossConfigured: cross, paused: paused))
+            }
+        sessionPower.start()
         statusController.onApprovePairing = { [weak self] in self?.crossServer.approvePairing() }
         statusController.onRejectPairing = { [weak self] in self?.crossServer.rejectPairing() }
         statusController.onForgetPeer = { [weak self] fingerprint in self?.crossServer.forgetPeer(fingerprint: fingerprint) }
@@ -122,6 +143,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !terminationInProgress else { return .terminateLater }
         terminationInProgress = true
+        powerStateSubscription?.cancel()
+        sessionPower.stop()
+        lidSleep.stop()
         networkRetryTimer?.invalidate()
         statusController.state.phase = .stopping
 
@@ -157,6 +181,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        powerStateSubscription?.cancel()
+        sessionPower.stop()
+        lidSleep.stop()
         logger.info("ThunderLinkSender terminating")
         controlClient.stop(sendBye: false)
         crossServer.stop()
@@ -246,6 +273,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refreshPermissions() {
         statusController.state.accessibilityGranted = InputInjector.checkAccessibilityPermission()
         statusController.state.screenRecordingGranted = CGPreflightScreenCaptureAccess()
+    }
+
+    private func setKeepAwake(_ enabled: Bool) {
+        do {
+            let arguments = DesktopSettings.argumentsSettingKeepAwake(enabled, in: DesktopSettings.savedArguments)
+            try DesktopSettings.save(arguments)
+            DesktopSettings.savedArguments = arguments
+            NetworkConfig.keepAwakeOnPower = enabled
+            statusController.state.keepAwakeOnPower = enabled
+            statusController.state.powerSettingsError = nil
+            sessionPower.setEnabled(enabled)
+        } catch { statusController.state.powerSettingsError = error.localizedDescription }
     }
 
     @MainActor private func prepareForCross(completion: @escaping (Result<Void, Error>) -> Void) async {

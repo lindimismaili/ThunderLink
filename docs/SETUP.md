@@ -188,6 +188,7 @@ Mac-only flags:
 
 ```text
 --no-auto-ip --display <index>
+--keep-awake --no-keep-awake
 ```
 
 Windows-only flags:
@@ -219,3 +220,38 @@ HEVC to H.264. The Stats panel reports the active decoder backend.
 
 See [MAC_TESTING.md](MAC_TESTING.md) or
 [WINDOWS_TESTING.md](WINDOWS_TESTING.md) before declaring setup complete.
+
+## Keep awake and closed-lid sessions
+
+Mac Settings → Power has **Keep Mac awake, including with the lid closed**,
+enabled by default for new and existing settings. It applies immediately and is
+saved locally. A running Screen Share stream or configured Cross session holds
+the Mac awake only on AC power; discovery, pairing, and waiting for a peer do
+not. Hiding the window keeps the session active. Disconnect, Quit, disabling
+the option, and switching to battery release the hold.
+
+Ordinary idle/display sleep prevention works immediately. For lid-close sleep,
+click **Authorize Closed-Lid Mode** and approve macOS's administrator prompt
+once per app launch. The password stays with macOS. The separate bundled helper
+is temporary: no login item, daemon, or sudoers permission is installed.
+The UI reports authorization separately from an active, kernel-verified
+override. Canceling authorization leaves ordinary idle sleep prevention working.
+
+The lid override uses `pmset -a disablesleep` and therefore also blocks manual
+Sleep while active. Turn the option off or disconnect before choosing Sleep.
+The helper independently checks AC power, temperature, and a four-second app
+lease, then restores normal sleep when that lease expires. A serious/critical
+thermal state releases the lid override. An existing externally configured
+sleep override is left untouched and reported as a conflict.
+
+This mechanism needs physical validation on each supported Mac/macOS version;
+it is not Apple's supported external-display clamshell workflow. A lost or
+removed display can still stop Screen Share or require a Cross arrangement
+review. This feature does not create a virtual display or bypass screen lock.
+
+If the privileged helper itself is forcibly killed or the machine loses power
+before cleanup, the system-wide setting can remain enabled. After confirming
+no other keep-awake tool needs it, an administrator can recover with
+`sudo /usr/bin/pmset -a disablesleep 0`. Do not assume reboot clears this setting.
+The watchdog handles app crashes/hangs; it is not a persistent boot recovery
+service. See the explicit physical acceptance checks in MAC_TESTING.md.
