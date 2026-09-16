@@ -1,3 +1,8 @@
 {
-    "cmake.sourceDirectory": "/Users/lindimismaili/GitHub/Mac-Windows-Connect/windows_receiver"
+    // Keep the CMake Tools extension pointed at the same source and build
+    // directories the Build/Run tasks use, on either machine.
+    "cmake.sourceDirectory": "${workspaceFolder}/windows_receiver",
+    "cmake.buildDirectory": "${workspaceFolder}/windows_receiver/build",
+    // scripts/dev.ps1 owns configuring and building; don't race it on folder open.
+    "cmake.configureOnOpen": false
 }

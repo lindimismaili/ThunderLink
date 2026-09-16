@@ -1583,3 +1583,283 @@
 [03:28:48.519] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
 [03:28:49.527] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
 [03:28:50.539] [INFO ] PerformanceMonitor.cpp:98 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+
+===== ThunderLink Windows session start =====
+[07:20:05.899] [INFO ] Window.cpp:90 - Window: created 1280x720
+[07:20:05.906] [INFO ] D3D12Renderer.cpp:223 - D3D12Renderer: debug layer enabled
+[07:20:06.154] [INFO ] D3D12Renderer.cpp:252 - D3D12Renderer: using adapter 'NVIDIA GeForce RTX 3060'
+[07:20:06.180] [INFO ] SwapChain.cpp:28 - SwapChain: tearing support = yes
+[07:20:06.185] [INFO ] SwapChain.cpp:91 - SwapChain: initialized 1280x720, 3 buffers
+[07:20:06.189] [INFO ] TextureManager.cpp:200 - TextureManager: created 3 upload buffers, 12441600 bytes each
+[07:20:06.190] [INFO ] TextureManager.cpp:40 - TextureManager: initialized (NV12), max 3840x2160
+[07:20:06.235] [INFO ] D3D12Renderer.cpp:422 - D3D12Renderer: root signature and PSO created
+[07:20:06.237] [INFO ] D3D12Renderer.cpp:153 - D3D12Renderer: ImGui overlay initialized
+[07:20:06.237] [INFO ] D3D12Renderer.cpp:52 - D3D12Renderer: initialized successfully
+[07:20:06.268] [INFO ] FrameBuffer.cpp:48 - FrameBuffer: allocated 4 slots, 33177600 bytes each (126.6 MB total)
+[07:20:06.268] [INFO ] InputCapture.cpp:45 - InputCapture: RawInput registered
+[07:20:07.247] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:08.255] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:09.256] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:10.417] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:11.418] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:13.551] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:14.552] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:15.555] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:16.558] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+
+===== ThunderLink Windows session start =====
+[07:20:37.429] [INFO ] Window.cpp:90 - Window: created 1280x720
+[07:20:37.431] [INFO ] D3D12Renderer.cpp:223 - D3D12Renderer: debug layer enabled
+[07:20:37.671] [INFO ] D3D12Renderer.cpp:252 - D3D12Renderer: using adapter 'NVIDIA GeForce RTX 3060'
+[07:20:37.697] [INFO ] SwapChain.cpp:28 - SwapChain: tearing support = yes
+[07:20:37.701] [INFO ] SwapChain.cpp:91 - SwapChain: initialized 1280x720, 3 buffers
+[07:20:37.704] [INFO ] TextureManager.cpp:200 - TextureManager: created 3 upload buffers, 12441600 bytes each
+[07:20:37.706] [INFO ] TextureManager.cpp:40 - TextureManager: initialized (NV12), max 3840x2160
+[07:20:37.711] [INFO ] D3D12Renderer.cpp:422 - D3D12Renderer: root signature and PSO created
+[07:20:37.714] [INFO ] D3D12Renderer.cpp:153 - D3D12Renderer: ImGui overlay initialized
+[07:20:37.714] [INFO ] D3D12Renderer.cpp:52 - D3D12Renderer: initialized successfully
+[07:20:37.747] [INFO ] FrameBuffer.cpp:48 - FrameBuffer: allocated 4 slots, 33177600 bytes each (126.6 MB total)
+[07:20:37.748] [INFO ] InputCapture.cpp:45 - InputCapture: RawInput registered
+[07:20:38.721] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:39.726] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:40.727] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:41.728] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:42.730] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:43.731] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:44.731] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:45.750] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:46.750] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:47.774] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:48.785] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:49.786] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:50.790] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:51.793] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:52.796] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:53.796] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:54.802] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:55.804] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:56.807] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:57.821] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:58.824] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:20:59.829] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:21:00.833] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:21:01.833] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:21:02.848] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:21:03.849] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+
+===== ThunderLink Windows session start =====
+[07:24:18.647] [INFO ] Window.cpp:90 - Window: created 1280x720
+[07:24:18.649] [INFO ] D3D12Renderer.cpp:223 - D3D12Renderer: debug layer enabled
+[07:24:18.847] [INFO ] D3D12Renderer.cpp:252 - D3D12Renderer: using adapter 'NVIDIA GeForce RTX 3060'
+[07:24:18.867] [INFO ] SwapChain.cpp:28 - SwapChain: tearing support = yes
+[07:24:18.871] [INFO ] SwapChain.cpp:91 - SwapChain: initialized 1280x720, 3 buffers
+[07:24:18.874] [INFO ] TextureManager.cpp:200 - TextureManager: created 3 upload buffers, 12441600 bytes each
+[07:24:18.875] [INFO ] TextureManager.cpp:40 - TextureManager: initialized (NV12), max 3840x2160
+[07:24:18.880] [INFO ] D3D12Renderer.cpp:422 - D3D12Renderer: root signature and PSO created
+[07:24:18.881] [INFO ] D3D12Renderer.cpp:153 - D3D12Renderer: ImGui overlay initialized
+[07:24:18.882] [INFO ] D3D12Renderer.cpp:52 - D3D12Renderer: initialized successfully
+[07:24:18.912] [INFO ] FrameBuffer.cpp:48 - FrameBuffer: allocated 4 slots, 33177600 bytes each (126.6 MB total)
+[07:24:18.912] [INFO ] InputCapture.cpp:45 - InputCapture: RawInput registered
+[07:24:19.903] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:20.911] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:21.927] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:22.953] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:23.955] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:24.972] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:25.999] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:27.005] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:28.011] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:29.040] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:30.050] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:31.061] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:32.088] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:33.090] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:34.103] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:35.118] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:36.143] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:37.150] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:38.179] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:39.184] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:40.184] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:41.195] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:42.204] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:43.235] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:44.248] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:45.251] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:46.261] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:47.273] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:48.287] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:49.299] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:50.316] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:51.320] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:52.345] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:53.352] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:54.360] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:55.386] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:56.402] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:57.430] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:58.448] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:24:59.478] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:00.492] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:01.514] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:02.515] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:03.519] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:04.526] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:05.535] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:06.544] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:07.559] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:08.562] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:09.575] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:10.585] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:11.590] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:12.616] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:13.618] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:14.640] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:15.667] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:16.682] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:17.701] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:18.718] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:19.720] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:20.737] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:21.745] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:22.745] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:23.768] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:24.784] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:25.806] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:26.826] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:27.846] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:28.867] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:29.871] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:30.876] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:31.903] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:32.911] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:33.911] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:34.913] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:35.914] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:36.942] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:37.950] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:38.969] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:39.997] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:41.024] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:42.044] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:43.045] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:44.069] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:45.077] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:46.078] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:47.083] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:48.085] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:49.094] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:50.094] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:51.099] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:52.102] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:53.125] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:54.151] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:55.161] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:56.182] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:57.183] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:58.207] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:25:59.233] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:00.237] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:01.238] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:02.240] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:03.241] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:04.248] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:05.251] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:06.263] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:07.294] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:08.311] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:09.330] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:10.336] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:11.348] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:12.355] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:13.361] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:14.365] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:15.386] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:16.419] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:17.435] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:18.465] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:19.479] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:20.495] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:21.503] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:22.506] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:23.531] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:24.544] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:25.560] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:26.580] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:27.581] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:28.606] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:29.614] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:30.634] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:31.643] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:32.651] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:33.655] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:34.679] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:35.704] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:36.711] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:37.711] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:38.737] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:39.739] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:40.752] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:41.764] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:42.764] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:43.767] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:44.777] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:45.785] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:46.792] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:47.807] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:48.811] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:49.824] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:50.832] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:51.842] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:52.852] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:53.858] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:54.864] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:55.870] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:56.885] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:57.899] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:58.902] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:26:59.905] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:00.913] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:01.918] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:02.930] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:03.934] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:04.939] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:05.952] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:06.960] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:07.967] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:08.976] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:09.981] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:10.991] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:11.997] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:13.003] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:14.009] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:15.020] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:16.027] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:17.032] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:18.036] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:19.040] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:20.045] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:21.047] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:22.058] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:23.064] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:24.079] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:25.083] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:26.083] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:27.092] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:28.098] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:29.102] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:30.109] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:31.116] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:32.120] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:33.122] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:34.132] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:35.141] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:36.147] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:37.155] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:38.166] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:39.177] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:40.184] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:41.193] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:42.203] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:43.213] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
+[07:27:44.220] [INFO ] PerformanceMonitor.cpp:109 - Stats: FPS=0.0  BW=0.0 Mbps  Rendered=0  Dropped=0  Packets=0  Reassembly=0 us
