@@ -27,6 +27,7 @@ CMakeUserPresets.json
 *.sln.docstates
 
 # ── Editors / IDEs ──
+.remember/
 .idea/
 *.swp
 *~
