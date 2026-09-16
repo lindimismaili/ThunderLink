@@ -67,7 +67,10 @@ final class TLLogger {
 
     /// `<repo>/logs/mac.log`, derived from this source file's location so it is
     /// independent of the process working directory.
-    private static func repoLogFileURL() -> URL {
+    static func logFileURL() -> URL {
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/ThunderLink/mac.log")
+        }
         // #filePath here = <repo>/mac_sender/Sources/Utils/Logger.swift
         let repo = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // Utils
@@ -78,7 +81,7 @@ final class TLLogger {
     }
 
     private static func openLogFile() -> FileHandle? {
-        let url = repoLogFileURL()
+        let url = logFileURL()
         let fm = FileManager.default
         try? fm.createDirectory(at: url.deletingLastPathComponent(),
                                 withIntermediateDirectories: true)

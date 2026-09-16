@@ -15,9 +15,11 @@ let package = Package(
                 .linkedFramework("CoreMedia"),
                 .linkedFramework("CoreVideo"),
                 .linkedFramework("CoreGraphics"),
+                .linkedFramework("ColorSync"),
                 .linkedFramework("AppKit"),
                 .linkedFramework("SwiftUI")
             ]
-        )
+        ),
+        .testTarget(name: "ThunderLinkSenderTests", dependencies: ["ThunderLinkSender"], path: "Tests")
     ]
 )

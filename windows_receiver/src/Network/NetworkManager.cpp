@@ -1,352 +1,172 @@
 #include "NetworkManager.h"
+#include "TcpTransport.h"
 #include "Utils/Logger.h"
-#include "App/Config.h"
-
+#include "App/Validation.h"
 #include <nlohmann/json.hpp>
-#include <chrono>
-#include <cstring>
-
-using json = nlohmann::json;
-
+#include <random>
+#ifdef _WIN32
+#include <bcrypt.h>
+#endif
+using json=nlohmann::json;
 namespace thunderlink {
-
-NetworkManager::NetworkManager() {
+namespace {
+uint64_t NewSession() {
+    uint64_t value=0;
+#ifdef _WIN32
+    do {
+        if (BCryptGenRandom(nullptr,reinterpret_cast<PUCHAR>(&value),sizeof(value),BCRYPT_USE_SYSTEM_PREFERRED_RNG)!=0)
+            throw std::runtime_error("Could not generate stream session ID");
+    } while (!value);
+#else
+    std::random_device random;
+    do { value=(uint64_t(random())<<32)|random(); } while (!value);
+#endif
+    return value;
 }
-
-NetworkManager::~NetworkManager() {
-    Stop();
+uint32_t Number(const json& j,const char* field) {
+    const auto& value=j.at(field);
+    if (!value.is_number_integer()) throw std::invalid_argument("Invalid integer field");
+    if (value.is_number_unsigned()) {
+        auto n=value.get<uint64_t>();
+        if (n>UINT32_MAX) throw std::invalid_argument("Integer out of range");
+        return uint32_t(n);
+    }
+    auto n=value.get<int64_t>();
+    if(n<0 || n>UINT32_MAX) throw std::invalid_argument("Integer out of range");
+    return uint32_t(n);
 }
-
-bool NetworkManager::Start() {
-    m_listenSocket = tlnk_create_tcp_socket();
-    if (m_listenSocket == TLNK_INVALID_SOCKET) {
-        LOG_ERROR("NetworkManager: failed to create control socket");
-        return false;
+}
+NetworkManager::~NetworkManager(){ Stop(); }
+bool NetworkManager::Start(){
+    if(m_running.load()) return true;
+    m_listenSocket=tlnk_create_tcp_socket();
+    if(m_listenSocket==TLNK_INVALID_SOCKET) return false;
+    const auto& cfg=GetConfig(); auto address=tlnk_make_addr(cfg.bindIP.c_str(),cfg.controlPort);
+    if(bind(m_listenSocket,reinterpret_cast<sockaddr*>(&address),sizeof(address))!=0 ||
+       listen(m_listenSocket,1)!=0 || tlnk_set_nonblocking(m_listenSocket)!=0){
+        tlnk_close_socket(m_listenSocket); m_listenSocket=TLNK_INVALID_SOCKET; return false;
     }
-
-    const auto& cfg = GetConfig();
-    struct sockaddr_in addr = tlnk_make_addr(cfg.bindIP.c_str(), cfg.controlPort);
-    if (bind(m_listenSocket, (struct sockaddr*)&addr, sizeof(addr)) == TLNK_SOCKET_ERROR) {
-        LOG_ERROR("NetworkManager: failed to bind control socket to %s:%d (err=%d)",
-                  cfg.bindIP.c_str(), cfg.controlPort, tlnk_get_error());
-        tlnk_close_socket(m_listenSocket);
-        m_listenSocket = TLNK_INVALID_SOCKET;
-        return false;
-    }
-
-    if (listen(m_listenSocket, 1) == TLNK_SOCKET_ERROR) {
-        LOG_ERROR("NetworkManager: listen failed (err=%d)", tlnk_get_error());
-        tlnk_close_socket(m_listenSocket);
-        m_listenSocket = TLNK_INVALID_SOCKET;
-        return false;
-    }
-
-    LOG_INFO("NetworkManager: listening on %s:%d", cfg.bindIP.c_str(), cfg.controlPort);
-
-    m_running.store(true);
-    m_controlThread = std::thread(&NetworkManager::ControlThread, this);
-
+    m_running=true;
+    m_controlThread=std::thread(&NetworkManager::ControlThread,this);
     return true;
 }
-
-void NetworkManager::Stop() {
-    m_running.store(false);
-
-    if (m_clientSocket != TLNK_INVALID_SOCKET) {
-        /* Send BYE message */
-        json bye;
-        bye["type"] = TLNK_CTRL_BYE;
-        SendControlMessage(m_clientSocket, bye.dump());
-        tlnk_close_socket(m_clientSocket);
-        m_clientSocket = TLNK_INVALID_SOCKET;
-    }
-
-    if (m_listenSocket != TLNK_INVALID_SOCKET) {
-        tlnk_close_socket(m_listenSocket);
-        m_listenSocket = TLNK_INVALID_SOCKET;
-    }
-
-    if (m_controlThread.joinable()) {
-        m_controlThread.join();
-    }
-
-    m_connected.store(false);
+void NetworkManager::Stop(){
+    m_running=false;
+    if(m_controlThread.joinable()) m_controlThread.join();
 }
-
-ConnectionInfo NetworkManager::GetConnectionInfo() const {
-    std::lock_guard<std::mutex> lock(m_infoMutex);
-    return m_connInfo;
+ConnectionInfo NetworkManager::GetConnectionInfo()const{ std::lock_guard<std::mutex> l(m_mutex); return m_connInfo; }
+std::string NetworkManager::GetError()const{ std::lock_guard<std::mutex> l(m_mutex); return m_error; }
+void NetworkManager::SetError(const std::string& error){
+    {std::lock_guard<std::mutex> l(m_mutex); m_error=error;}
+    LOG_WARN("Control: %s",error.c_str());
 }
-
-bool NetworkManager::RequestConfigure(uint32_t width, uint32_t height, uint32_t fps) {
-    if (!m_connected.load() || m_clientSocket == TLNK_INVALID_SOCKET) return false;
-
-    const auto& cfg = GetConfig();
-    json configure;
-    configure["type"]    = TLNK_CTRL_CONFIGURE;
-    configure["width"]   = width;
-    configure["height"]  = height;
-    configure["fps"]     = fps;
-    configure["codec"]   = (int)cfg.codec;
-    configure["bitrate"] = cfg.bitrateKbps;
-
-    return SendControlMessage(m_clientSocket, configure.dump());
+bool NetworkManager::RequestConfigure(uint32_t w,uint32_t h,uint32_t fps){
+    const auto& cfg=GetConfig();
+    if(!m_connected || !ValidStreamConfig(w,h,fps,cfg.bitrateKbps)) return false;
+    std::lock_guard<std::mutex> l(m_mutex);
+    ConnectionInfo info; info.width=w;info.height=h;info.fps=fps;info.codec=cfg.codec;info.bitrateKbps=cfg.bitrateKbps;
+    m_requested=info; return true;
 }
-
-void NetworkManager::ControlThread() {
-    LOG_INFO("NetworkManager: control thread started");
-
-    /* Set a timeout on accept so we can check m_running */
-    struct timeval tv;
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
-    setsockopt(m_listenSocket, SOL_SOCKET, SO_RCVTIMEO,
-               (const char*)&tv, sizeof(tv));
-
-    while (m_running.load()) {
-        struct sockaddr_in clientAddr;
-        int addrLen = sizeof(clientAddr);
-
-        tlnk_socket_t client = accept(m_listenSocket,
-                                       (struct sockaddr*)&clientAddr, &addrLen);
-
-        if (client == TLNK_INVALID_SOCKET) {
-            continue; /* Timeout or error, loop again */
-        }
-
-        char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &clientAddr.sin_addr, ip, sizeof(ip));
-        LOG_INFO("NetworkManager: Mac sender connected from %s", ip);
-
-        m_clientSocket = client;
-        HandleClient(client);
-
-        m_clientSocket = TLNK_INVALID_SOCKET;
-        m_connected.store(false);
-
-        if (m_onDisconnected) m_onDisconnected();
-        LOG_INFO("NetworkManager: Mac sender disconnected");
-    }
-
-    LOG_INFO("NetworkManager: control thread exiting");
+void NetworkManager::RequestKeyframe(){
+    if(!m_connected) return;
+    std::lock_guard<std::mutex> l(m_mutex);m_keyframeRequested=true;
 }
-
-bool NetworkManager::HandleClient(tlnk_socket_t clientSocket) {
-    /* Set receive timeout for control messages */
-    struct timeval tv;
-    tv.tv_sec = 2;
-    tv.tv_usec = 0;
-    setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO,
-               (const char*)&tv, sizeof(tv));
-
-    /* Wait for HELLO from Mac */
-    std::string helloMsg = ReceiveControlMessage(clientSocket);
-    if (helloMsg.empty()) {
-        LOG_ERROR("NetworkManager: no HELLO received from Mac");
-        tlnk_close_socket(clientSocket);
-        return false;
+void NetworkManager::Disconnect(){
+    bool wasConnected=m_connected.exchange(false);
+    { std::lock_guard<std::mutex> l(m_mutex);m_connInfo={};m_requested.reset();m_keyframeRequested=false; }
+    m_peerLatencyMs=0;
+    if(wasConnected && m_onDisconnected) m_onDisconnected();
+}
+void NetworkManager::ControlThread(){
+    while(m_running){
+        int ready=SocketReady(m_listenSocket,false);
+        if(ready<0){SetError("Control listener readiness failed");m_running=false;break;}
+        if(!ready) continue;
+        sockaddr_in addr{};SocketLength length=sizeof(addr);
+        auto client=accept(m_listenSocket,reinterpret_cast<sockaddr*>(&addr),&length);
+        if(client==TLNK_INVALID_SOCKET) continue;
+        if(tlnk_set_nonblocking(client)==0){
+            try {HandleClient(client);}catch(const std::exception& e){SetError(e.what());}
+        }
+        tlnk_close_socket(client);Disconnect();
     }
-
-    try {
-        json hello = json::parse(helloMsg);
-        if (hello["type"].get<int>() != TLNK_CTRL_HELLO) {
-            LOG_ERROR("NetworkManager: expected HELLO, got type %d", hello["type"].get<int>());
-            tlnk_close_socket(clientSocket);
-            return false;
+    tlnk_close_socket(m_listenSocket);m_listenSocket=TLNK_INVALID_SOCKET;
+}
+void NetworkManager::HandleClient(tlnk_socket_t socket){
+    FramedReader reader;
+    auto send=[&](const json& j){return SendFramed(socket,j.dump(),[&]{return m_running.load();},TLNK_WRITE_TIMEOUT_MS);};
+    auto deadline=m_clock()+std::chrono::milliseconds(TLNK_HANDSHAKE_TIMEOUT_MS);
+    auto lastReceived=m_clock(),lastPing=lastReceived,lastKeyframe=lastReceived-std::chrono::seconds(1);
+    bool hello=false,waitingStart=false;
+    ConnectionInfo pending;
+    auto configure=[&](ConnectionInfo requested){
+        Disconnect();
+        requested.sessionId=NewSession(); pending=requested; waitingStart=true;
+        deadline=m_clock()+std::chrono::milliseconds(TLNK_HANDSHAKE_TIMEOUT_MS);
+        return send(json{{"type",TLNK_CTRL_CONFIGURE},{"session_id",SessionString(pending.sessionId)},
+                         {"width",pending.width},{"height",pending.height},{"fps",pending.fps},
+                         {"codec",int(pending.codec)},{"bitrate",pending.bitrateKbps}});
+    };
+    while(m_running){
+        const auto now=m_clock();
+        if((!hello||waitingStart) && now>=deadline){SetError("Stream handshake timed out");break;}
+        if(hello && now-lastReceived>=std::chrono::milliseconds(TLNK_PEER_TIMEOUT_MS)){SetError("Peer stopped responding");break;}
+        std::optional<ConnectionInfo> request;
+        bool key=false;
+        {std::lock_guard<std::mutex> l(m_mutex);request=m_requested;m_requested.reset();
+         if(now-lastKeyframe>=std::chrono::milliseconds(75)){key=m_keyframeRequested;m_keyframeRequested=false;}}
+        if(request && !configure(*request)) break;
+        if(key && m_connected){
+            if(!send(json{{"type",TLNK_CTRL_REQUEST_KEYFRAME},{"session_id",SessionString(pending.sessionId)}})) break;
+            lastKeyframe=now;
         }
-
-        LOG_INFO("NetworkManager: received HELLO - version %d",
-                 hello.value("version", 0));
-
-        /* Send CONFIGURE with desired settings from the runtime config. The
-         * codec is our PREFERRED codec; the Mac confirms the actual codec in
-         * START (it may downgrade HEVC->H.264 if it cannot encode HEVC). */
-        const auto& cfg = GetConfig();
-        json configure;
-        configure["type"]    = TLNK_CTRL_CONFIGURE;
-        configure["width"]   = cfg.width;
-        configure["height"]  = cfg.height;
-        configure["fps"]     = cfg.fps;
-        configure["codec"]   = (int)cfg.codec;       /* TlnkCodec */
-        configure["bitrate"] = cfg.bitrateKbps;
-
-        if (!SendControlMessage(clientSocket, configure.dump())) {
-            LOG_ERROR("NetworkManager: failed to send CONFIGURE");
-            tlnk_close_socket(clientSocket);
-            return false;
+        if(hello && now-lastPing>=std::chrono::milliseconds(TLNK_PING_INTERVAL_MS)){
+            auto stamp=std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+            if(!send(json{{"type",TLNK_CTRL_PING},{"sent_time",stamp}})) break;
+            lastPing=now;
         }
-
-        /* Wait for START confirmation */
-        std::string startMsg = ReceiveControlMessage(clientSocket);
-        if (startMsg.empty()) {
-            LOG_ERROR("NetworkManager: no START received");
-            tlnk_close_socket(clientSocket);
-            return false;
-        }
-
-        json start = json::parse(startMsg);
-        if (start["type"].get<int>() != TLNK_CTRL_START) {
-            LOG_ERROR("NetworkManager: expected START, got type %d", start["type"].get<int>());
-            tlnk_close_socket(clientSocket);
-            return false;
-        }
-
-        uint32_t w = start.value("width", cfg.width);
-        uint32_t h = start.value("height", cfg.height);
-        uint32_t fps = start.value("fps", cfg.fps);
-        TlnkCodec codec = (TlnkCodec)start.value("codec", (int)cfg.codec);
-        uint32_t bitrate = start.value("bitrate", cfg.bitrateKbps);
-
-        {
-            std::lock_guard<std::mutex> lock(m_infoMutex);
-            m_connInfo.width = w;
-            m_connInfo.height = h;
-            m_connInfo.fps = fps;
-            m_connInfo.codec = codec;
-            m_connInfo.bitrateKbps = bitrate;
-            m_connInfo.connected = true;
-        }
-
-        m_connected.store(true);
-        LOG_INFO("NetworkManager: streaming started at %ux%u @ %u fps, codec=%s, %u kbps",
-                 w, h, fps, (codec == TLNK_CODEC_HEVC ? "HEVC" : "H264"), bitrate);
-
-        if (m_onConnected) {
-            ConnectionInfo info;
-            info.width = w;
-            info.height = h;
-            info.fps = fps;
-            info.codec = codec;
-            info.bitrateKbps = bitrate;
-            info.connected = true;
-            info.peerLatencyMs = 0.0f;
-            m_onConnected(info);
-        }
-
-    } catch (const json::exception& e) {
-        LOG_ERROR("NetworkManager: JSON parse error: %s", e.what());
-        tlnk_close_socket(clientSocket);
-        return false;
-    }
-
-    /* Main control loop - handle pings and other messages */
-    auto lastPing = std::chrono::steady_clock::now();
-
-    while (m_running.load() && m_connected.load()) {
-        std::string msg = ReceiveControlMessage(clientSocket);
-
-        if (!msg.empty()) {
-            try {
-                json j = json::parse(msg);
-                int type = j["type"].get<int>();
-
-                if (type == TLNK_CTRL_PONG) {
-                    auto sent = j.value("sent_time", 0LL);
-                    auto now = std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now().time_since_epoch()).count();
-                    float latencyMs = static_cast<float>(now - sent) / 1000.0f;
-                    m_peerLatencyMs.store(latencyMs);
-
-                    std::lock_guard<std::mutex> lock(m_infoMutex);
-                    m_connInfo.peerLatencyMs = latencyMs;
+        std::string text;auto status=reader.Poll(socket,text);
+        if(status==ReadStatus::Idle) continue;
+        if(status!=ReadStatus::Message){SetError("Control connection closed or invalid framing");break;}
+        lastReceived=m_clock();
+        try{
+            auto j=json::parse(text);auto type=Number(j,"type");
+            if(type==TLNK_CTRL_BYE) break;
+            if(!hello){
+                if(type!=TLNK_CTRL_HELLO || Number(j,"version")!=TLNK_VERSION){
+                    send(json{{"type",TLNK_CTRL_BYE},{"reason","Protocol v3 required; update both applications"}});
+                    SetError("Protocol mismatch: update both applications to v3");break;
                 }
-                else if (type == TLNK_CTRL_BYE) {
-                    LOG_INFO("NetworkManager: Mac sent BYE");
-                    break;
+                hello=true;
+                const auto& c=GetConfig();ConnectionInfo requested;
+                requested.width=c.width;requested.height=c.height;requested.fps=c.fps;requested.codec=c.codec;requested.bitrateKbps=c.bitrateKbps;
+                if(!configure(requested))break;
+            }else if(type==TLNK_CTRL_START){
+                uint64_t sid=ParseSession(j.at("session_id").get<std::string>());
+                if(!waitingStart || sid!=pending.sessionId) continue;
+                auto w=Number(j,"width"),h=Number(j,"height"),f=Number(j,"fps"),b=Number(j,"bitrate"),c=Number(j,"codec");
+                if(!ValidStreamConfig(w,h,f,b,true)||c!=uint32_t(pending.codec)||f!=pending.fps||b!=pending.bitrateKbps)
+                    throw std::invalid_argument("Invalid START configuration");
+                pending.width=w;pending.height=h;pending.connected=true;
+                {std::lock_guard<std::mutex> l(m_mutex);m_connInfo=pending;m_error.clear();}
+                waitingStart=false;m_connected=true;
+                if(m_onConnected)m_onConnected(pending);
+                RequestKeyframe();
+            }else if(type==TLNK_CTRL_STOP){
+                if(ParseSession(j.at("session_id").get<std::string>())!=pending.sessionId)continue;
+                SetError(j.value("reason",std::string("Sender stopped streaming")));break;
+            }else if(type==TLNK_CTRL_PONG){
+                auto sent=j.at("sent_time").get<int64_t>();
+                auto stamp=std::chrono::duration_cast<std::chrono::microseconds>(m_clock().time_since_epoch()).count();
+                if(sent>0 && sent<=stamp && stamp-sent<=TLNK_PEER_TIMEOUT_MS*1000LL){
+                    float latency=float(stamp-sent)/1000.f;m_peerLatencyMs=latency;
+                    std::lock_guard<std::mutex> l(m_mutex);m_connInfo.peerLatencyMs=latency;
                 }
-                else if (type == TLNK_CTRL_STOP) {
-                    LOG_INFO("NetworkManager: Mac stopped streaming");
-                    break;
-                }
-            } catch (...) {}
-        }
-
-        /* Send periodic pings */
-        auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPing).count()
-            >= TLNK_PING_INTERVAL_MS) {
-            SendPing(clientSocket);
-            lastPing = now;
-        }
+            }else if(type==TLNK_CTRL_PING){
+                if(!send(json{{"type",TLNK_CTRL_PONG},{"sent_time",j.at("sent_time")}}))break;
+            }else throw std::invalid_argument("Unexpected control message");
+        }catch(const std::exception& e){SetError(e.what());break;}
     }
-
-    tlnk_close_socket(clientSocket);
-    return true;
+    if(!m_running)SendFramed(socket,json{{"type",TLNK_CTRL_BYE}}.dump(),[]{return true;},50);
 }
-
-bool NetworkManager::SendControlMessage(tlnk_socket_t sock, const std::string& jsonStr) {
-    /* 4-byte big-endian length prefix + JSON bytes.
-     * Serialized because pings (control thread) and keyframe requests (render
-     * thread) can both write to the client socket; interleaving would corrupt
-     * the length-prefixed framing. */
-    std::lock_guard<std::mutex> lock(m_sendMutex);
-
-    uint32_t len = static_cast<uint32_t>(jsonStr.size());
-    uint8_t header[4];
-    header[0] = (len >> 24) & 0xFF;
-    header[1] = (len >> 16) & 0xFF;
-    header[2] = (len >> 8) & 0xFF;
-    header[3] = len & 0xFF;
-
-    if (send(sock, (const char*)header, 4, 0) != 4) return false;
-    if (send(sock, jsonStr.c_str(), (int)jsonStr.size(), 0) != (int)jsonStr.size()) return false;
-
-    return true;
-}
-
-void NetworkManager::RequestKeyframe() {
-    if (!m_connected.load() || m_clientSocket == TLNK_INVALID_SOCKET) return;
-
-    /* Rate-limit so a burst of lost packets doesn't trigger an IDR storm. */
-    auto now = std::chrono::steady_clock::now();
-    {
-        std::lock_guard<std::mutex> lock(m_sendMutex);
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(
-                now - m_lastKeyframeReq).count() < KEYFRAME_REQ_MIN_INTERVAL_MS) {
-            return;
-        }
-        m_lastKeyframeReq = now;
-    }
-
-    json req;
-    req["type"] = TLNK_CTRL_REQUEST_KEYFRAME;
-    SendControlMessage(m_clientSocket, req.dump());
-    LOG_DEBUG("NetworkManager: requested keyframe (loss recovery)");
-}
-
-std::string NetworkManager::ReceiveControlMessage(tlnk_socket_t sock) {
-    /* Read 4-byte length prefix */
-    uint8_t header[4];
-    int received = 0;
-    while (received < 4) {
-        int r = recv(sock, (char*)(header + received), 4 - received, 0);
-        if (r <= 0) return "";
-        received += r;
-    }
-
-    uint32_t len = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
-    if (len > 65536) return ""; /* Sanity check */
-
-    std::string result(len, '\0');
-    received = 0;
-    while (received < (int)len) {
-        int r = recv(sock, &result[received], (int)(len - received), 0);
-        if (r <= 0) return "";
-        received += r;
-    }
-
-    return result;
-}
-
-void NetworkManager::SendPing(tlnk_socket_t sock) {
-    auto now = std::chrono::duration_cast<std::chrono::microseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-
-    json ping;
-    ping["type"] = TLNK_CTRL_PING;
-    ping["sent_time"] = now;
-
-    SendControlMessage(sock, ping.dump());
-}
-
 } // namespace thunderlink

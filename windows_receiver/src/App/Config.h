@@ -33,7 +33,7 @@ struct Config {
     uint32_t  width        = 0;
     uint32_t  height       = 0;
     uint32_t  fps          = 60;
-    TlnkCodec codec        = TLNK_CODEC_HEVC;  /* preferred; downgraded to H.264 if HEVC decode is unavailable */
+    TlnkCodec codec        = TLNK_CODEC_HEVC;  /* hardware/software fallback keeps this codec */
     uint32_t  bitrateKbps  = 25000;            /* ~25 Mbps default for 1440p60 general use */
 
     /* Window (initial client size; independent of the stream resolution, which

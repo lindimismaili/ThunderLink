@@ -1,55 +1,40 @@
 #pragma once
-
 #include <string>
-#include <queue>
+#include <deque>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
 #include <cstdint>
-
 #include "network_utils.h"
-
 namespace thunderlink {
-
 struct InputEvent {
-    int type;           /* TlnkInputType */
-    int64_t timestamp;
-    float x, y;         /* Normalized [0,1] */
-    int button;          /* TlnkMouseButton */
-    int state;           /* TlnkButtonState */
-    uint16_t keyCode;    /* Windows virtual key code */
-    uint8_t modifiers;   /* TlnkModifierFlags bitmask */
-    int32_t deltaX;      /* Scroll delta */
-    int32_t deltaY;      /* Scroll delta */
+    int type=0;
+    int64_t timestamp=0;
+    float x=0,y=0;
+    int button=0,state=0;
+    uint16_t keyCode=0;
+    uint8_t modifiers=0;
+    int32_t deltaX=0,deltaY=0;
+    uint64_t sessionId=0;
 };
-
 class InputSender {
 public:
-    InputSender();
     ~InputSender();
-
     bool Start();
     void Stop();
+    void SetSession(uint64_t sessionId);
     bool IsConnected() const { return m_connected.load(); }
-
-    /* Thread-safe: enqueue an input event for sending */
-    void SendEvent(const InputEvent& event);
-
+    bool SendEvent(const InputEvent& event);
 private:
     void SendThread();
-    bool Connect();
-    bool SendMessage(const std::string& json);
     std::string SerializeEvent(const InputEvent& event);
-
-    tlnk_socket_t m_socket = TLNK_INVALID_SOCKET;
     std::thread m_sendThread;
-    std::atomic<bool> m_running{false};
-    std::atomic<bool> m_connected{false};
-
+    std::atomic<bool> m_running{false},m_connected{false};
+    std::atomic<uint64_t> m_sessionId{0};
     std::mutex m_queueMutex;
     std::condition_variable m_queueCV;
-    std::queue<InputEvent> m_eventQueue;
+    std::deque<InputEvent> m_eventQueue;
+    bool m_resetRequested=false;
 };
-
-} // namespace thunderlink
+}

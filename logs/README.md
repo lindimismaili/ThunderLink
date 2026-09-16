@@ -1,5 +1,11 @@
 # Cross-device logs
 
+Development builds write these files. Packaged desktop apps instead use
+`~/Library/Logs/ThunderLink/mac.log` or
+`%LOCALAPPDATA%\ThunderLink\Logs\windows.log`; open them from Diagnostics.
+Copy selected diagnostic excerpts manually when needed; packaging never rewrites
+these tracked files.
+
 These files let you read what happened on the *other* machine after a `git` sync,
 which is handy while testing the Mac sender and Windows receiver on separate boxes.
 

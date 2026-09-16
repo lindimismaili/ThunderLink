@@ -1,80 +1,56 @@
 #pragma once
-
+#include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <functional>
+#include <mutex>
 #include <string>
 #include <thread>
-#include <atomic>
-#include <mutex>
-#include <chrono>
-#include <functional>
-
+#include <optional>
 #include "network_utils.h"
-
 namespace thunderlink {
-
 struct ConnectionInfo {
-    uint32_t width;
-    uint32_t height;
-    uint32_t fps;
-    TlnkCodec codec;        /* codec the Mac confirmed it will send */
-    uint32_t bitrateKbps;
-    bool connected;
-    float peerLatencyMs;
+    uint32_t width=0, height=0, fps=0;
+    TlnkCodec codec=TLNK_CODEC_HEVC;
+    uint32_t bitrateKbps=0;
+    bool connected=false;
+    float peerLatencyMs=0;
+    uint64_t sessionId=0;
 };
-
 class NetworkManager {
 public:
-    NetworkManager();
+    using Clock = std::function<std::chrono::steady_clock::time_point()>;
+    explicit NetworkManager(Clock clock = [] { return std::chrono::steady_clock::now(); })
+        : m_clock(std::move(clock)) {}
     ~NetworkManager();
-
-    using OnConnectedCallback = std::function<void(const ConnectionInfo&)>;
-    using OnDisconnectedCallback = std::function<void()>;
-
-    void SetOnConnected(OnConnectedCallback cb) { m_onConnected = std::move(cb); }
-    void SetOnDisconnected(OnDisconnectedCallback cb) { m_onDisconnected = std::move(cb); }
-
-    /* Start listening for Mac sender connection on control port */
+    using OnConnectedCallback=std::function<void(const ConnectionInfo&)>;
+    using OnDisconnectedCallback=std::function<void()>;
+    void SetOnConnected(OnConnectedCallback cb) { m_onConnected=std::move(cb); }
+    void SetOnDisconnected(OnDisconnectedCallback cb) { m_onDisconnected=std::move(cb); }
     bool Start();
     void Stop();
-
     bool IsConnected() const { return m_connected.load(); }
     float GetPeerLatency() const { return m_peerLatencyMs.load(); }
     ConnectionInfo GetConnectionInfo() const;
-
-    /* Request the Mac to change resolution/fps */
-    bool RequestConfigure(uint32_t width, uint32_t height, uint32_t fps);
-
-    /* Ask the Mac to emit an IDR on its next frame (loss recovery).
-     * Thread-safe and internally rate-limited; safe to call on every dropped frame. */
+    std::string GetError() const;
+    bool RequestConfigure(uint32_t width,uint32_t height,uint32_t fps);
     void RequestKeyframe();
-
 private:
+    Clock m_clock;
     void ControlThread();
-    bool HandleClient(tlnk_socket_t clientSocket);
-    bool SendControlMessage(tlnk_socket_t sock, const std::string& json);
-    std::string ReceiveControlMessage(tlnk_socket_t sock);
-    void SendPing(tlnk_socket_t sock);
-
-    tlnk_socket_t m_listenSocket = TLNK_INVALID_SOCKET;
-    tlnk_socket_t m_clientSocket = TLNK_INVALID_SOCKET;
-
-    /* Serializes writes to m_clientSocket across threads (control loop +
-     * keyframe requests coming from the render/receive path). */
-    std::mutex m_sendMutex;
-    /* Rate-limit keyframe requests so a burst of loss doesn't trigger an IDR storm. */
-    std::chrono::steady_clock::time_point m_lastKeyframeReq{};
-    static constexpr int KEYFRAME_REQ_MIN_INTERVAL_MS = 75;
-
+    void HandleClient(tlnk_socket_t socket);
+    void Disconnect();
+    void SetError(const std::string& error);
+    tlnk_socket_t m_listenSocket=TLNK_INVALID_SOCKET;
     std::thread m_controlThread;
-    std::atomic<bool> m_running{false};
-    std::atomic<bool> m_connected{false};
-    std::atomic<float> m_peerLatencyMs{0.0f};
-
-    mutable std::mutex m_infoMutex;
+    std::atomic<bool> m_running{false},m_connected{false};
+    std::atomic<float> m_peerLatencyMs{0};
+    mutable std::mutex m_mutex;
     ConnectionInfo m_connInfo{};
-
+    std::string m_error;
+    std::optional<ConnectionInfo> m_requested;
+    bool m_keyframeRequested=false;
     OnConnectedCallback m_onConnected;
     OnDisconnectedCallback m_onDisconnected;
 };
-
-} // namespace thunderlink
+}

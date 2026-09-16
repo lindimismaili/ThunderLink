@@ -11,6 +11,7 @@ protocol ScreenCaptureDelegate: AnyObject {
     func screenCapture(_ capture: ScreenCapture,
                        didCaptureFrame pixelBuffer: CVPixelBuffer,
                        pts: CMTime)
+    func screenCapture(_ capture: ScreenCapture, didStopWithError error: Error)
 }
 
 /// Captures the Mac screen using ScreenCaptureKit with hardware acceleration.
@@ -20,6 +21,16 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
     weak var delegate: ScreenCaptureDelegate?
 
     private var stream: SCStream?
+    private let deliveryLock = NSLock()
+    private var deliveryStream: SCStream?
+
+    private func setDeliveryStream(_ stream: SCStream?) {
+        deliveryLock.lock(); deliveryStream = stream; deliveryLock.unlock()
+    }
+    private func accepts(_ stream: SCStream) -> Bool {
+        deliveryLock.lock(); defer { deliveryLock.unlock() }
+        return deliveryStream === stream
+    }
     private let frameQueue = DispatchQueue(label: "com.thunderlink.capture",
                                            qos: .userInteractive)
     private(set) var captureWidth: Int = 0
@@ -28,6 +39,12 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
 
     /// Start capturing the given display.
     func startCapture(display: SCDisplay, width: Int, height: Int, fps: Int) async throws {
+        guard width >= 2, width <= NetworkConfig.maxWidth, width.isMultiple(of: 2),
+              height >= 2, height <= NetworkConfig.maxHeight, height.isMultiple(of: 2),
+              (NetworkConfig.minFPS...NetworkConfig.maxFPS).contains(fps) else {
+            throw StreamConfigurationError.invalidResolvedResolution(width, height)
+        }
+        await stopCapture()
         captureWidth = width
         captureHeight = height
         captureFPS = fps
@@ -46,22 +63,32 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
         let filter = SCContentFilter(display: display,
                                      excludingWindows: [])
 
-        stream = SCStream(filter: filter, configuration: config, delegate: self)
-
-        try stream?.addStreamOutput(self, type: .screen, sampleHandlerQueue: frameQueue)
-        try await stream?.startCapture()
+        let newStream = SCStream(filter: filter, configuration: config, delegate: self)
+        setDeliveryStream(newStream)
+        do {
+            try newStream.addStreamOutput(self, type: .screen, sampleHandlerQueue: frameQueue)
+            try await newStream.startCapture()
+            stream = newStream
+        } catch {
+            setDeliveryStream(nil)
+            try? newStream.removeStreamOutput(self, type: .screen)
+            throw error
+        }
 
         logger.info("ScreenCapture: started \(width)x\(height) @ \(fps) fps (NV12)")
     }
 
     /// Stop the current capture session.
     func stopCapture() async {
+        setDeliveryStream(nil)
+        guard let current = stream else { return }
+        stream = nil
         do {
-            try await stream?.stopCapture()
+            try await current.stopCapture()
         } catch {
             logger.warn("ScreenCapture: stopCapture error: \(error)")
         }
-        stream = nil
+        try? current.removeStreamOutput(self, type: .screen)
         logger.info("ScreenCapture: stopped")
     }
 
@@ -70,7 +97,7 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
     func stream(_ stream: SCStream,
                 didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
                 of type: SCStreamOutputType) {
-        guard type == .screen else { return }
+        guard type == .screen, accepts(stream) else { return }
 
         // Only forward frames whose contents actually changed (.complete).
         // ScreenCaptureKit also emits .idle frames when the screen is static;
@@ -94,6 +121,8 @@ final class ScreenCapture: NSObject, SCStreamDelegate, SCStreamOutput {
     // MARK: - SCStreamDelegate
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
+        guard accepts(stream) else { return }
         logger.error("ScreenCapture: stream stopped with error: \(error)")
+        delegate?.screenCapture(self, didStopWithError: error)
     }
 }

@@ -3,6 +3,8 @@
 #include "Utils/Logger.h"
 
 #include <cmath>
+#include <shellapi.h>
+#include <wtsapi32.h>
 
 #include "imgui.h"
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg,
@@ -24,6 +26,13 @@ bool Window::Create(HINSTANCE hInstance, int nCmdShow, uint32_t width, uint32_t 
 
     /* Enable per-monitor DPI awareness */
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    const UINT initialDpi = GetDpiForSystem();
+    const auto minimumWidth = static_cast<uint32_t>(MulDiv(800, initialDpi ? initialDpi : 96, 96));
+    const auto minimumHeight = static_cast<uint32_t>(MulDiv(560, initialDpi ? initialDpi : 96, 96));
+    if (width < minimumWidth) width = minimumWidth;
+    if (height < minimumHeight) height = minimumHeight;
+    m_width = width; m_height = height;
+
 
     /* Register window class */
     WNDCLASSEXW wc = {};
@@ -31,6 +40,9 @@ bool Window::Create(HINSTANCE hInstance, int nCmdShow, uint32_t width, uint32_t 
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = StaticWndProc;
     wc.hInstance = hInstance;
+    wc.hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(1));
+    if (!wc.hIcon) wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    wc.hIconSm = wc.hIcon;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
     wc.lpszClassName = CLASS_NAME;
@@ -56,7 +68,7 @@ bool Window::Create(HINSTANCE hInstance, int nCmdShow, uint32_t width, uint32_t 
     m_hwnd = CreateWindowExW(
         0,
         CLASS_NAME,
-        L"ThunderLink Receiver",
+        L"ThunderLink",
         WS_OVERLAPPEDWINDOW,
         posX, posY,
         windowWidth, windowHeight,
@@ -69,6 +81,9 @@ bool Window::Create(HINSTANCE hInstance, int nCmdShow, uint32_t width, uint32_t 
         return false;
     }
 
+    m_taskbarCreated = RegisterWindowMessageW(L"TaskbarCreated");
+    WTSRegisterSessionNotification(m_hwnd, NOTIFY_FOR_THIS_SESSION);
+    AddTrayIcon();
     ShowWindow(m_hwnd, nCmdShow);
     UpdateWindow(m_hwnd);
 
@@ -76,8 +91,59 @@ bool Window::Create(HINSTANCE hInstance, int nCmdShow, uint32_t width, uint32_t 
     return true;
 }
 
+void Window::AddTrayIcon() {
+    NOTIFYICONDATAW icon{};
+    icon.cbSize = sizeof(icon); icon.hWnd = m_hwnd; icon.uID = 1;
+    icon.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+    icon.uCallbackMessage = WM_APP + 41;
+    icon.hIcon = LoadIconW(m_hInstance, MAKEINTRESOURCEW(1));
+    if (!icon.hIcon) icon.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    wcscpy_s(icon.szTip, L"ThunderLink");
+    m_trayAdded = Shell_NotifyIconW(NIM_ADD, &icon) != FALSE;
+    icon.uVersion = NOTIFYICON_VERSION_4;
+    if (m_trayAdded) Shell_NotifyIconW(NIM_SETVERSION, &icon);
+}
+void Window::ShowTrayMenu() {
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING, 1, L"Show");
+    AppendMenuW(menu, MF_STRING, 2, L"Quit");
+    POINT point{}; GetCursorPos(&point);
+    SetForegroundWindow(m_hwnd);
+    UINT command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+                                 point.x, point.y, 0, m_hwnd, nullptr);
+    DestroyMenu(menu);
+    PostMessageW(m_hwnd, WM_NULL, 0, 0);
+    if (command == 1) Show();
+    if (command == 2) RequestQuit();
+}
+void Window::Show() {
+    ShowWindow(m_hwnd, IsIconic(m_hwnd) ? SW_RESTORE : SW_SHOW);
+    if (m_restoreFullscreen) { m_restoreFullscreen = false; SetFullscreen(true); }
+    SetForegroundWindow(m_hwnd);
+}
+void Window::Hide() {
+    // Never leave the user with an invisible app and no way to restore it.
+    if (!m_trayAdded) AddTrayIcon();
+    if (!m_trayAdded) { ShowWindow(m_hwnd, SW_MINIMIZE); return; }
+    if (m_inputCapture) {
+        m_inputCapture->SetEnabled(false);
+        m_inputCapture->SetCursorConfined(false);
+        m_inputCapture->OnFocusLost();
+    }
+    m_restoreFullscreen = m_fullscreen;
+    SetFullscreen(false);
+    ShowWindow(m_hwnd, SW_HIDE);
+}
+
 void Window::Destroy() {
+    if (m_trayAdded) {
+        NOTIFYICONDATAW icon{}; icon.cbSize = sizeof(icon); icon.hWnd = m_hwnd; icon.uID = 1;
+        Shell_NotifyIconW(NIM_DELETE, &icon); m_trayAdded = false;
+    }
+
     if (m_hwnd) {
+        WTSUnRegisterSessionNotification(m_hwnd);
+        SetFullscreen(false);
         DestroyWindow(m_hwnd);
         m_hwnd = nullptr;
     }
@@ -88,6 +154,44 @@ void Window::Destroy() {
     }
 }
 
+void Window::SetFullscreen(bool fullscreen) {
+    if (!m_hwnd || fullscreen == m_fullscreen) return;
+
+    if (fullscreen) {
+        GetWindowRect(m_hwnd, &m_savedWindowRect);
+        m_savedStyle = GetWindowLongPtrW(m_hwnd, GWL_STYLE);
+        m_savedExStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+
+        SetWindowLongPtrW(m_hwnd, GWL_STYLE,
+                          m_savedStyle & ~static_cast<LONG_PTR>(WS_OVERLAPPEDWINDOW));
+        HMONITOR monitor = MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO info = { sizeof(info) };
+        if (!GetMonitorInfoW(monitor, &info)) {
+            SetWindowLongPtrW(m_hwnd, GWL_STYLE, m_savedStyle);
+            LOG_ERROR("Window: GetMonitorInfoW failed (err=%lu)", GetLastError());
+            return;
+        }
+        SetWindowPos(m_hwnd, HWND_TOP,
+                     info.rcMonitor.left, info.rcMonitor.top,
+                     info.rcMonitor.right - info.rcMonitor.left,
+                     info.rcMonitor.bottom - info.rcMonitor.top,
+                     SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        m_fullscreen = true;
+    } else {
+        SetWindowLongPtrW(m_hwnd, GWL_STYLE, m_savedStyle);
+        SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, m_savedExStyle);
+        SetWindowPos(m_hwnd, HWND_NOTOPMOST,
+                     m_savedWindowRect.left, m_savedWindowRect.top,
+                     m_savedWindowRect.right - m_savedWindowRect.left,
+                     m_savedWindowRect.bottom - m_savedWindowRect.top,
+                     SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        m_fullscreen = false;
+    }
+
+    if (m_inputCapture) m_inputCapture->ReapplyCursorClip();
+    LOG_INFO("Window: fullscreen %s", m_fullscreen ? "enabled" : "disabled");
+}
+
 void Window::SetAspectRatio(float aspect) {
     if (aspect <= 0.0f) { m_aspectRatio = 0.0f; return; }
     if (std::fabs(aspect - m_aspectRatio) < 0.001f) return;  // unchanged
@@ -95,7 +199,7 @@ void Window::SetAspectRatio(float aspect) {
     if (!m_hwnd) return;
 
     /* Only snap in windowed mode (don't fight F11 borderless fullscreen). */
-    if ((GetWindowLongW(m_hwnd, GWL_STYLE) & WS_CAPTION) == 0) return;
+    if (m_fullscreen) return;
 
     RECT cr;
     if (!GetClientRect(m_hwnd, &cr)) return;
@@ -149,7 +253,40 @@ LRESULT Window::WndProc(UINT msg, WPARAM wParam, LPARAM lParam) {
         }
     }
 
+    if (m_taskbarCreated && msg == m_taskbarCreated) { m_trayAdded = false; AddTrayIcon(); if (!m_trayAdded) Show(); return 0; }
     switch (msg) {
+        case WM_APP + 40: Show(); return 0;
+        case WM_APP + 41:
+            if (LOWORD(lParam) == WM_CONTEXTMENU || LOWORD(lParam) == NIN_SELECT || LOWORD(lParam) == NIN_KEYSELECT)
+                ShowTrayMenu();
+            return 0;
+        case WM_CLOSE: Hide(); return 0;
+        case WM_DISPLAYCHANGE:
+            if (m_crossSafetyCallback) m_crossSafetyCallback();
+            return 0;
+        case WM_WTSSESSION_CHANGE:
+            if ((wParam == WTS_SESSION_LOCK || wParam == WTS_SESSION_LOGOFF) && m_crossSafetyCallback) m_crossSafetyCallback();
+            return 0;
+        case WM_POWERBROADCAST:
+            if (wParam == PBT_APMSUSPEND && m_crossSafetyCallback) m_crossSafetyCallback();
+            return TRUE;
+        case WM_QUERYENDSESSION: return TRUE;
+        case WM_ENDSESSION: if (wParam) RequestQuit(); return 0;
+        case WM_GETMINMAXINFO: {
+            if ((GetWindowLongPtrW(m_hwnd, GWL_STYLE) & WS_OVERLAPPEDWINDOW) == 0) break;
+            auto* limits = reinterpret_cast<MINMAXINFO*>(lParam);
+            const UINT dpi = GetDpiForWindow(m_hwnd);
+            limits->ptMinTrackSize.x = MulDiv(800, dpi ? dpi : 96, 96);
+            limits->ptMinTrackSize.y = MulDiv(560, dpi ? dpi : 96, 96);
+            return 0;
+        }
+        case WM_DPICHANGED: {
+            const RECT* rect = reinterpret_cast<RECT*>(lParam);
+            SetWindowPos(m_hwnd, nullptr, rect->left, rect->top, rect->right - rect->left,
+                         rect->bottom - rect->top, SWP_NOZORDER | SWP_NOACTIVATE);
+            return 0;
+        }
+
         case WM_INPUT:
             if (m_inputCapture) {
                 m_inputCapture->ProcessRawInput(lParam);
@@ -195,6 +332,9 @@ LRESULT Window::WndProc(UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_SIZE: {
+            if (wParam == SIZE_MINIMIZED && m_inputCapture) {
+                m_inputCapture->SetEnabled(false); m_inputCapture->SetCursorConfined(false); m_inputCapture->OnFocusLost();
+            }
             uint32_t newWidth = LOWORD(lParam);
             uint32_t newHeight = HIWORD(lParam);
             if (newWidth > 0 && newHeight > 0 &&
@@ -205,6 +345,7 @@ LRESULT Window::WndProc(UINT msg, WPARAM wParam, LPARAM lParam) {
 
                 if (m_inputCapture) {
                     m_inputCapture->SetWindowSize(m_width, m_height);
+                    m_inputCapture->ReapplyCursorClip();
                 }
                 if (m_resizeCallback) {
                     m_resizeCallback(m_width, m_height);
@@ -216,41 +357,12 @@ LRESULT Window::WndProc(UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_KEYDOWN:
             if (wParam == VK_ESCAPE) {
                 if (m_inputCapture) {
-                    m_inputCapture->ToggleCursorConfinement();
+                    m_inputCapture->SetCursorConfined(false);
                 }
                 return 0;
             }
-            if (wParam == VK_F11) {
-                /* Toggle borderless fullscreen */
-                static bool fullscreen = false;
-                static RECT savedRect = {};
-                static LONG savedStyle = 0;
-
-                if (!fullscreen) {
-                    GetWindowRect(m_hwnd, &savedRect);
-                    savedStyle = GetWindowLongW(m_hwnd, GWL_STYLE);
-
-                    SetWindowLongW(m_hwnd, GWL_STYLE, savedStyle & ~WS_OVERLAPPEDWINDOW);
-
-                    HMONITOR monitor = MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
-                    MONITORINFO info = {sizeof(info)};
-                    GetMonitorInfoW(monitor, &info);
-
-                    SetWindowPos(m_hwnd, HWND_TOP,
-                                 info.rcMonitor.left, info.rcMonitor.top,
-                                 info.rcMonitor.right - info.rcMonitor.left,
-                                 info.rcMonitor.bottom - info.rcMonitor.top,
-                                 SWP_FRAMECHANGED | SWP_NOACTIVATE);
-                    fullscreen = true;
-                } else {
-                    SetWindowLongW(m_hwnd, GWL_STYLE, savedStyle);
-                    SetWindowPos(m_hwnd, HWND_NOTOPMOST,
-                                 savedRect.left, savedRect.top,
-                                 savedRect.right - savedRect.left,
-                                 savedRect.bottom - savedRect.top,
-                                 SWP_FRAMECHANGED | SWP_NOACTIVATE);
-                    fullscreen = false;
-                }
+            if (wParam == VK_F11 && (lParam & (1LL << 30)) == 0) {
+                SetFullscreen(!m_fullscreen);
                 return 0;
             }
             break;

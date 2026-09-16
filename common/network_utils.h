@@ -6,6 +6,7 @@
  */
 
 #include <stdint.h>
+#include <string.h>
 #include "protocol.h"
 
 #ifdef _WIN32
@@ -69,6 +70,25 @@
   }
 #endif
 
+static inline int tlnk_set_nonblocking(tlnk_socket_t s) {
+#ifdef _WIN32
+    u_long enabled = 1;
+    return ioctlsocket(s, FIONBIO, &enabled);
+#else
+    int flags = fcntl(s, F_GETFL, 0);
+    return flags < 0 ? -1 : fcntl(s, F_SETFL, flags | O_NONBLOCK);
+#endif
+}
+
+static inline int tlnk_would_block(void) {
+    int error = tlnk_get_error();
+#ifdef _WIN32
+    return error == WSAEWOULDBLOCK || error == WSAEINPROGRESS;
+#else
+    return error == EAGAIN || error == EWOULDBLOCK || error == EINPROGRESS || error == EINTR;
+#endif
+}
+
 /* Fill a sockaddr_in for the given IP string and port */
 static inline struct sockaddr_in tlnk_make_addr(const char* ip, uint16_t port) {
     struct sockaddr_in addr;
@@ -85,13 +105,29 @@ static inline tlnk_socket_t tlnk_create_udp_socket(void) {
     if (s == TLNK_INVALID_SOCKET) return s;
 
     int reuse = 1;
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) != 0) {
+        tlnk_close_socket(s);
+        return TLNK_INVALID_SOCKET;
+    }
 
     int recv_buf = TLNK_RECV_BUFFER_SIZE;
-    setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char*)&recv_buf, sizeof(recv_buf));
+    if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char*)&recv_buf, sizeof(recv_buf)) != 0) {
+        /* Some hosts cap unprivileged socket buffers below 4 MB. */
+        recv_buf = 64 * 1024;
+        if (setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char*)&recv_buf, sizeof(recv_buf)) != 0) {
+            tlnk_close_socket(s);
+            return TLNK_INVALID_SOCKET;
+        }
+    }
 
     int send_buf = TLNK_SEND_BUFFER_SIZE;
-    setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char*)&send_buf, sizeof(send_buf));
+    if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char*)&send_buf, sizeof(send_buf)) != 0) {
+        send_buf = 64 * 1024;
+        if (setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char*)&send_buf, sizeof(send_buf)) != 0) {
+            tlnk_close_socket(s);
+            return TLNK_INVALID_SOCKET;
+        }
+    }
 
     return s;
 }
@@ -102,11 +138,23 @@ static inline tlnk_socket_t tlnk_create_tcp_socket(void) {
     if (s == TLNK_INVALID_SOCKET) return s;
 
     int reuse = 1;
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) != 0) {
+        tlnk_close_socket(s);
+        return TLNK_INVALID_SOCKET;
+    }
 
     /* Disable Nagle's algorithm for minimum latency */
     int nodelay = 1;
-    setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay));
+    if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char*)&nodelay, sizeof(nodelay)) != 0) {
+        tlnk_close_socket(s);
+        return TLNK_INVALID_SOCKET;
+    }
+#ifdef SO_NOSIGPIPE
+    if (setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, (const char*)&nodelay, sizeof(nodelay)) != 0) {
+        tlnk_close_socket(s);
+        return TLNK_INVALID_SOCKET;
+    }
+#endif
 
     return s;
 }

@@ -1,188 +1,101 @@
 #include "InputSender.h"
+#include "TcpTransport.h"
 #include "Utils/Logger.h"
-#include "App/Config.h"
-
+#include "App/Validation.h"
 #include "input_event.h"
-
 #include <nlohmann/json.hpp>
-#include <chrono>
-
-using json = nlohmann::json;
-
+using json=nlohmann::json;
 namespace thunderlink {
-
-InputSender::InputSender() {
-}
-
-InputSender::~InputSender() {
-    Stop();
-}
-
-bool InputSender::Start() {
-    m_running.store(true);
-    m_sendThread = std::thread(&InputSender::SendThread, this);
-    return true;
-}
-
-void InputSender::Stop() {
-    m_running.store(false);
+InputSender::~InputSender(){Stop();}
+bool InputSender::Start(){if(m_running.exchange(true))return true;m_sendThread=std::thread(&InputSender::SendThread,this);return true;}
+void InputSender::Stop(){m_running=false;m_queueCV.notify_all();if(m_sendThread.joinable())m_sendThread.join();m_connected=false;}
+void InputSender::SetSession(uint64_t sid){
+    {std::lock_guard<std::mutex> lock(m_queueMutex);if(m_sessionId.exchange(sid)==sid)return;m_connected=false;m_eventQueue.clear();m_resetRequested=true;}
     m_queueCV.notify_all();
-
-    if (m_socket != TLNK_INVALID_SOCKET) {
-        tlnk_close_socket(m_socket);
-        m_socket = TLNK_INVALID_SOCKET;
-    }
-
-    if (m_sendThread.joinable()) {
-        m_sendThread.join();
-    }
-
-    m_connected.store(false);
 }
-
-void InputSender::SendEvent(const InputEvent& event) {
-    {
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-        /* Limit queue size to prevent unbounded growth */
-        if (m_eventQueue.size() < 1000) {
-            m_eventQueue.push(event);
-        }
-    }
+bool InputSender::SendEvent(const InputEvent& input){
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    if(!m_connected || !m_sessionId)return false;
+    InputEvent event=input;event.sessionId=m_sessionId;
+    if(event.type==TLNK_INPUT_MOUSE_MOVE && !m_eventQueue.empty() && m_eventQueue.back().type==TLNK_INPUT_MOUSE_MOVE)
+        m_eventQueue.back()=event;
+    else if(m_eventQueue.size()<1000)m_eventQueue.push_back(event);
+    else {m_eventQueue.clear();m_resetRequested=true;m_queueCV.notify_one();return false;}
     m_queueCV.notify_one();
-}
-
-bool InputSender::Connect() {
-    if (m_socket != TLNK_INVALID_SOCKET) {
-        tlnk_close_socket(m_socket);
-    }
-
-    m_socket = tlnk_create_tcp_socket();
-    if (m_socket == TLNK_INVALID_SOCKET) {
-        LOG_ERROR("InputSender: failed to create TCP socket");
-        return false;
-    }
-
-    const auto& cfg = GetConfig();
-    struct sockaddr_in addr = tlnk_make_addr(cfg.peerIP.c_str(), cfg.inputPort);
-    if (connect(m_socket, (struct sockaddr*)&addr, sizeof(addr)) == TLNK_SOCKET_ERROR) {
-        LOG_DEBUG("InputSender: failed to connect to %s:%d (err=%d)",
-                  cfg.peerIP.c_str(), cfg.inputPort, tlnk_get_error());
-        tlnk_close_socket(m_socket);
-        m_socket = TLNK_INVALID_SOCKET;
-        return false;
-    }
-
-    LOG_INFO("InputSender: connected to %s:%d", cfg.peerIP.c_str(), cfg.inputPort);
-    m_connected.store(true);
     return true;
 }
-
-void InputSender::SendThread() {
-    LOG_INFO("InputSender: send thread started");
-
-    while (m_running.load()) {
-        /* Try to connect if not connected */
-        if (!m_connected.load()) {
-            if (!Connect()) {
-                std::this_thread::sleep_for(
-                    std::chrono::milliseconds(TLNK_RECONNECT_INTERVAL_MS));
+void InputSender::SendThread(){
+    auto socket=TLNK_INVALID_SOCKET;
+    uint64_t connectedSession=0;
+    auto closeConnection=[&]{
+        m_connected=false;
+        if(socket!=TLNK_INVALID_SOCKET)tlnk_close_socket(socket);
+        socket=TLNK_INVALID_SOCKET;connectedSession=0;
+        std::lock_guard<std::mutex> lock(m_queueMutex);m_eventQueue.clear();
+    };
+    while(m_running){
+        bool reset=false;
+        {std::lock_guard<std::mutex> lock(m_queueMutex);reset=m_resetRequested;m_resetRequested=false;}
+        if(reset || connectedSession!=m_sessionId.load())closeConnection();
+        uint64_t desired=m_sessionId.load();
+        if(!desired){std::unique_lock<std::mutex> lock(m_queueMutex);m_queueCV.wait_for(lock,std::chrono::milliseconds(10));continue;}
+        if(socket==TLNK_INVALID_SOCKET){
+            socket=tlnk_create_tcp_socket();
+            auto addr=tlnk_make_addr(GetConfig().peerIP.c_str(),GetConfig().inputPort);
+            if(socket==TLNK_INVALID_SOCKET || !ConnectWithDeadline(socket,addr,m_running,TLNK_CONNECT_TIMEOUT_MS)){
+                closeConnection();
+                std::unique_lock<std::mutex> lock(m_queueMutex);
+                m_queueCV.wait_for(lock,std::chrono::milliseconds(TLNK_RECONNECT_INTERVAL_MS),[&]{return !m_running || m_sessionId!=desired;});
                 continue;
             }
+            if(desired!=m_sessionId.load()){closeConnection();continue;}
+            connectedSession=desired;
+            InputEvent resetEvent;resetEvent.type=TLNK_INPUT_RESET;resetEvent.sessionId=desired;
+            if(!SendFramed(socket,SerializeEvent(resetEvent),[&]{return m_running && m_sessionId==desired;},TLNK_WRITE_TIMEOUT_MS)){
+                closeConnection();continue;
+            }
+            // Discard anything queued before this connection was established.
+            {std::lock_guard<std::mutex> lock(m_queueMutex);
+             m_eventQueue.clear();
+             if (m_sessionId != desired || m_resetRequested) continue;
+             m_connected=true;}
         }
-
-        /* Wait for events */
-        InputEvent event;
-        {
-            std::unique_lock<std::mutex> lock(m_queueMutex);
-            m_queueCV.wait_for(lock, std::chrono::milliseconds(100),
-                               [this] { return !m_eventQueue.empty() || !m_running.load(); });
-
-            if (!m_running.load()) break;
-            if (m_eventQueue.empty()) continue;
-
-            event = m_eventQueue.front();
-            m_eventQueue.pop();
+        InputEvent event;bool haveEvent=false;
+        {std::unique_lock<std::mutex> lock(m_queueMutex);
+         m_queueCV.wait_for(lock,std::chrono::milliseconds(10),[&]{return !m_running||m_resetRequested||!m_eventQueue.empty();});
+         if(!m_eventQueue.empty()){event=m_eventQueue.front();m_eventQueue.pop_front();haveEvent=true;}}
+        if(haveEvent && event.sessionId==connectedSession &&
+           !SendFramed(socket,SerializeEvent(event),[&]{return m_running && m_sessionId==connectedSession;},TLNK_WRITE_TIMEOUT_MS)){
+            closeConnection();continue;
         }
-
-        /* Serialize and send */
-        std::string jsonStr = SerializeEvent(event);
-        if (!SendMessage(jsonStr)) {
-            LOG_WARN("InputSender: send failed, disconnecting");
-            tlnk_close_socket(m_socket);
-            m_socket = TLNK_INVALID_SOCKET;
-            m_connected.store(false);
+        int readable = socket == TLNK_INVALID_SOCKET ? 0 : SocketReady(socket,false,0);
+        if(readable < 0){closeConnection();continue;}
+        if(readable > 0){
+            char ignored;int n=static_cast<int>(recv(socket,&ignored,1,0));
+            if(n>=0 || !tlnk_would_block())closeConnection();
         }
     }
-
-    LOG_INFO("InputSender: send thread exiting");
-}
-
-bool InputSender::SendMessage(const std::string& jsonStr) {
-    /* 4-byte big-endian length prefix + JSON */
-    uint32_t len = static_cast<uint32_t>(jsonStr.size());
-    uint8_t header[4];
-    header[0] = (len >> 24) & 0xFF;
-    header[1] = (len >> 16) & 0xFF;
-    header[2] = (len >> 8) & 0xFF;
-    header[3] = len & 0xFF;
-
-    if (send(m_socket, (const char*)header, 4, 0) != 4) return false;
-    if (send(m_socket, jsonStr.c_str(), (int)jsonStr.size(), 0) != (int)jsonStr.size())
-        return false;
-
-    return true;
-}
-
-std::string InputSender::SerializeEvent(const InputEvent& event) {
-    json j;
-
-    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-    j[TLNK_JSON_TIMESTAMP] = now;
-
-    switch (event.type) {
-        case TLNK_INPUT_MOUSE_MOVE:
-            j[TLNK_JSON_TYPE] = TLNK_JSON_TYPE_MOUSE_MOVE;
-            j[TLNK_JSON_X] = event.x;
-            j[TLNK_JSON_Y] = event.y;
-            break;
-
-        case TLNK_INPUT_MOUSE_BUTTON:
-            j[TLNK_JSON_TYPE] = TLNK_JSON_TYPE_MOUSE_BUTTON;
-            j[TLNK_JSON_X] = event.x;
-            j[TLNK_JSON_Y] = event.y;
-            j[TLNK_JSON_BUTTON] = event.button;
-            j[TLNK_JSON_STATE] = (event.state == TLNK_STATE_DOWN)
-                                    ? TLNK_JSON_STATE_DOWN : TLNK_JSON_STATE_UP;
-            break;
-
-        case TLNK_INPUT_KEY: {
-            j[TLNK_JSON_TYPE] = TLNK_JSON_TYPE_KEY;
-            j[TLNK_JSON_KEY_CODE] = event.keyCode;
-            j[TLNK_JSON_STATE] = (event.state == TLNK_STATE_DOWN)
-                                    ? TLNK_JSON_STATE_DOWN : TLNK_JSON_STATE_UP;
-
-            json mods = json::array();
-            if (event.modifiers & TLNK_MOD_SHIFT) mods.push_back(TLNK_JSON_MOD_SHIFT);
-            if (event.modifiers & TLNK_MOD_CTRL)  mods.push_back(TLNK_JSON_MOD_CTRL);
-            if (event.modifiers & TLNK_MOD_ALT)   mods.push_back(TLNK_JSON_MOD_ALT);
-            if (event.modifiers & TLNK_MOD_META)  mods.push_back(TLNK_JSON_MOD_META);
-            j[TLNK_JSON_MODIFIERS] = mods;
-            break;
-        }
-
-        case TLNK_INPUT_SCROLL:
-            j[TLNK_JSON_TYPE] = TLNK_JSON_TYPE_SCROLL;
-            j[TLNK_JSON_DELTA_X] = event.deltaX;
-            j[TLNK_JSON_DELTA_Y] = event.deltaY;
-            break;
-
-        default:
-            j[TLNK_JSON_TYPE] = "unknown";
-            break;
+    if(socket!=TLNK_INVALID_SOCKET){
+        InputEvent reset;reset.type=TLNK_INPUT_RESET;reset.sessionId=connectedSession;
+        SendFramed(socket,SerializeEvent(reset),[]{return true;},50);
     }
-
+    closeConnection();
+}
+std::string InputSender::SerializeEvent(const InputEvent& event){
+    json j; j["session_id"]=SessionString(event.sessionId);
+    j["timestamp"]=std::chrono::duration_cast<std::chrono::milliseconds>(NetClock::now().time_since_epoch()).count();
+    switch(event.type){
+    case TLNK_INPUT_RESET:j["type"]="reset";break;
+    case TLNK_INPUT_MOUSE_MOVE:j["type"]="mouse_move";j["x"]=event.x;j["y"]=event.y;break;
+    case TLNK_INPUT_MOUSE_BUTTON:j["type"]="mouse_button";j["x"]=event.x;j["y"]=event.y;
+        j["button"]=event.button;j["state"]=event.state==TLNK_STATE_DOWN?"down":"up";break;
+    case TLNK_INPUT_KEY:{j["type"]="key";j["key_code"]=event.keyCode;j["state"]=event.state==TLNK_STATE_DOWN?"down":"up";
+        auto mods=json::array();if(event.modifiers&TLNK_MOD_SHIFT)mods.push_back("shift");
+        if(event.modifiers&TLNK_MOD_CTRL)mods.push_back("ctrl");if(event.modifiers&TLNK_MOD_ALT)mods.push_back("alt");
+        if(event.modifiers&TLNK_MOD_META)mods.push_back("meta");j["modifiers"]=mods;break;}
+    case TLNK_INPUT_SCROLL:j["type"]="scroll";j["delta_x"]=event.deltaX;j["delta_y"]=event.deltaY;break;
+    default:j["type"]="unknown";
+    }
     return j.dump();
 }
-
-} // namespace thunderlink
+}

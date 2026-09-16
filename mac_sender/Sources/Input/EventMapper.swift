@@ -11,6 +11,50 @@ enum EventMapper {
         return windowsToMacKeyMap[windowsVK] ?? CGKeyCode(windowsVK)
     }
 
+    /// Strict mapping used by Cross. An unknown Windows virtual key must not
+    /// be reinterpreted as an unrelated macOS hardware key code.
+    static func mapCrossKeyCode(_ windowsVK: UInt16, swapControlCommand: Bool) -> CGKeyCode? {
+        switch windowsVK {
+        case 0x10, 0xA0: return CGKeyCode(kVK_Shift)
+        case 0xA1: return CGKeyCode(kVK_RightShift)
+        case 0x11, 0xA2: return CGKeyCode(swapControlCommand ? kVK_Command : kVK_Control)
+        case 0xA3: return CGKeyCode(swapControlCommand ? kVK_RightCommand : kVK_RightControl)
+        case 0x12, 0xA4: return CGKeyCode(kVK_Option)
+        case 0xA5: return CGKeyCode(kVK_RightOption)
+        case 0x5B: return CGKeyCode(swapControlCommand ? kVK_Control : kVK_Command)
+        case 0x5C: return CGKeyCode(swapControlCommand ? kVK_RightControl : kVK_RightCommand)
+        case 0x0C, 0x90: return CGKeyCode(kVK_ANSI_KeypadClear)
+        case 0x14: return CGKeyCode(kVK_CapsLock)
+        case 0x2D: return CGKeyCode(kVK_Help)
+        case 0x60: return CGKeyCode(kVK_ANSI_Keypad0)
+        case 0x61: return CGKeyCode(kVK_ANSI_Keypad1)
+        case 0x62: return CGKeyCode(kVK_ANSI_Keypad2)
+        case 0x63: return CGKeyCode(kVK_ANSI_Keypad3)
+        case 0x64: return CGKeyCode(kVK_ANSI_Keypad4)
+        case 0x65: return CGKeyCode(kVK_ANSI_Keypad5)
+        case 0x66: return CGKeyCode(kVK_ANSI_Keypad6)
+        case 0x67: return CGKeyCode(kVK_ANSI_Keypad7)
+        case 0x68: return CGKeyCode(kVK_ANSI_Keypad8)
+        case 0x69: return CGKeyCode(kVK_ANSI_Keypad9)
+        case 0x6A: return CGKeyCode(kVK_ANSI_KeypadMultiply)
+        case 0x6B: return CGKeyCode(kVK_ANSI_KeypadPlus)
+        case 0x6C: return CGKeyCode(kVK_ANSI_KeypadEnter)
+        case 0x6D: return CGKeyCode(kVK_ANSI_KeypadMinus)
+        case 0x6E: return CGKeyCode(kVK_ANSI_KeypadDecimal)
+        case 0x6F: return CGKeyCode(kVK_ANSI_KeypadDivide)
+        case 0x7C: return CGKeyCode(kVK_F13)
+        case 0x7D: return CGKeyCode(kVK_F14)
+        case 0x7E: return CGKeyCode(kVK_F15)
+        case 0x7F: return CGKeyCode(kVK_F16)
+        case 0x80: return CGKeyCode(kVK_F17)
+        case 0x81: return CGKeyCode(kVK_F18)
+        case 0x82: return CGKeyCode(kVK_F19)
+        case 0x83: return CGKeyCode(kVK_F20)
+        case 0xE2: return CGKeyCode(kVK_ISO_Section)
+        default: return windowsToMacKeyMap[windowsVK]
+        }
+    }
+
     /// Convert normalized [0,1] coordinates to screen pixel coordinates.
     static func denormalize(x: Float, y: Float,
                             screenWidth: Int, screenHeight: Int) -> CGPoint {
@@ -31,6 +75,20 @@ enum EventMapper {
             case "ctrl":  flags.insert(.maskControl)
             case "alt":   flags.insert(.maskAlternate)
             case "meta":  flags.insert(.maskCommand)
+            default: break
+            }
+        }
+        return flags
+    }
+
+    static func mapModifiers(_ modifiers: [String]?, swapControlCommand: Bool) -> CGEventFlags {
+        var flags = CGEventFlags()
+        for modifier in modifiers ?? [] {
+            switch modifier {
+            case "shift": flags.insert(.maskShift)
+            case "ctrl": flags.insert(swapControlCommand ? .maskCommand : .maskControl)
+            case "alt": flags.insert(.maskAlternate)
+            case "meta": flags.insert(swapControlCommand ? .maskControl : .maskCommand)
             default: break
             }
         }

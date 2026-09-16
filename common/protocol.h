@@ -9,7 +9,7 @@
 
 /* Protocol identification */
 #define TLNK_MAGIC          0x544C4E4B  /* "TLNK" in ASCII */
-#define TLNK_VERSION        2           /* v2: compressed (H.264/HEVC) video + keyframe recovery */
+#define TLNK_VERSION        4           /* v4: independent, authenticated Cross sessions */
 
 /* Network configuration.
  * These are DEFAULTS for a direct link-local link; both sides accept overrides
@@ -20,16 +20,22 @@
 #define TLNK_PORT_VIDEO     50001   /* UDP - video frames */
 #define TLNK_PORT_INPUT     50002   /* TCP - input events */
 #define TLNK_PORT_CONTROL   50003   /* TCP - control messages */
+#define TLNK_PORT_CROSS     50004   /* TLS TCP - Cross control and ordered input */
+#define TLNK_CROSS_SERVICE  "_thunderlink-cross._tcp"
+#define TLNK_CROSS_LEASE_MS 1000
+#define TLNK_CROSS_PING_MS  250
+#define TLNK_CROSS_QUEUE_LIMIT 256
+#define TLNK_CROSS_MAX_DISPLAYS 32
 
 /* Packet limits.
  * Sized for the STANDARD 1500-byte Ethernet MTU (jumbo frames are usually OFF
  * on USB-C->Ethernet adapters). Max UDP payload over 1500 MTU = 1472 bytes
- * (1500 - 20 IP - 8 UDP); minus the 40-byte TlnkFrameHeader leaves 1432, so a
+ * (1500 - 20 IP - 8 UDP); minus the 48-byte TlnkFrameHeader leaves 1424, so a
  * 1400-byte chunk has margin. Oversized datagrams would be silently dropped by
  * a non-jumbo link, which manifests as a black screen while TCP control/input
  * (small packets) still work. */
 #define TLNK_MTU            1500    /* Standard Ethernet MTU */
-#define TLNK_HEADER_SIZE    40      /* sizeof(TlnkFrameHeader); enforced by _Static_assert */
+#define TLNK_HEADER_SIZE    48      /* sizeof(TlnkFrameHeader); enforced by _Static_assert */
 #define TLNK_MAX_PAYLOAD    1400    /* Payload per UDP packet (fits 1500 MTU with the header) */
 
 /* Socket buffer sizes */
@@ -40,11 +46,19 @@
 #define TLNK_FRAME_POOL_SIZE   4
 #define TLNK_MAX_WIDTH         3840
 #define TLNK_MAX_HEIGHT        2160
+#define TLNK_MIN_FPS            1
+#define TLNK_MAX_FPS            240
+#define TLNK_MIN_BITRATE_KBPS   1000
+#define TLNK_MAX_BITRATE_KBPS   200000
 
 /* Timeouts */
 #define TLNK_FRAME_TIMEOUT_MS       50   /* Drop incomplete frames after this */
 #define TLNK_RECONNECT_INTERVAL_MS  1000
 #define TLNK_PING_INTERVAL_MS       1000
+#define TLNK_CONNECT_TIMEOUT_MS      2000
+#define TLNK_WRITE_TIMEOUT_MS        2000
+#define TLNK_HANDSHAKE_TIMEOUT_MS    5000
+#define TLNK_PEER_TIMEOUT_MS         5000
 
 /* Video payload formats (carried in TlnkFrameHeader.format).
  * BGRA32 is the legacy uncompressed mode kept for testing/regression; the

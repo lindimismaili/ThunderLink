@@ -26,6 +26,7 @@ final class VideoEncoder {
 
     /// Invoked on VideoToolbox's internal output queue for each encoded frame.
     var onEncodedFrame: ((EncodedFrame) -> Void)?
+    var onError: ((String) -> Void)?
 
     private var session: VTCompressionSession?
     private let codec: TlnkCodecSwift
@@ -38,11 +39,21 @@ final class VideoEncoder {
     private var forceKeyframePending = false
 
     init?(width: Int, height: Int, fps: Int, bitrateKbps: Int, codec: TlnkCodecSwift) {
+        guard width >= 2, width <= NetworkConfig.maxWidth, width.isMultiple(of: 2),
+              height >= 2, height <= NetworkConfig.maxHeight, height.isMultiple(of: 2),
+              (NetworkConfig.minFPS...NetworkConfig.maxFPS).contains(fps),
+              (NetworkConfig.minBitrateKbps...NetworkConfig.maxBitrateKbps).contains(bitrateKbps),
+              let safeWidth = Int32(exactly: width), let safeHeight = Int32(exactly: height),
+              let safeFPS = Int32(exactly: fps),
+              let safeBitrate = Int32(exactly: bitrateKbps * 1_000) else {
+            logger.error("VideoEncoder: rejected invalid configuration \(width)x\(height) @ \(fps), \(bitrateKbps) kbps")
+            return nil
+        }
         self.codec = codec
-        self.width = Int32(width)
-        self.height = Int32(height)
-        self.fps = Int32(fps)
-        self.bitrateBps = Int32(bitrateKbps * 1000)
+        self.width = safeWidth
+        self.height = safeHeight
+        self.fps = safeFPS
+        self.bitrateBps = safeBitrate
 
         let codecType: CMVideoCodecType = (codec == .hevc) ? kCMVideoCodecType_HEVC
                                                            : kCMVideoCodecType_H264
@@ -53,7 +64,7 @@ final class VideoEncoder {
             width: self.width,
             height: self.height,
             codecType: codecType,
-            encoderSpecification: nil,
+            encoderSpecification: [kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder: true] as CFDictionary,
             imageBufferAttributes: nil,
             compressedDataAllocator: nil,
             outputCallback: nil,        // using the block-based encode API
@@ -66,8 +77,12 @@ final class VideoEncoder {
         }
         self.session = session
 
-        configure(session)
-        VTCompressionSessionPrepareToEncodeFrames(session)
+        guard configure(session), VTCompressionSessionPrepareToEncodeFrames(session) == noErr else {
+            logger.error("VideoEncoder: encoder property negotiation failed")
+            VTCompressionSessionInvalidate(session)
+            self.session = nil
+            return nil
+        }
         logger.info("VideoEncoder: ready \(width)x\(height) @ \(fps) fps, " +
                     "codec=\(codec), \(bitrateKbps) kbps")
     }
@@ -76,9 +91,14 @@ final class VideoEncoder {
         stop()
     }
 
-    private func configure(_ session: VTCompressionSession) {
+    private func configure(_ session: VTCompressionSession) -> Bool {
+        var valid = true
         func setProp(_ key: CFString, _ value: CFTypeRef) {
-            VTSessionSetProperty(session, key: key, value: value)
+            let status = VTSessionSetProperty(session, key: key, value: value)
+            if status != noErr {
+                logger.error("VideoEncoder: failed to set \(key) (\(status))")
+                valid = false
+            }
         }
 
         setProp(kVTCompressionPropertyKey_RealTime, kCFBooleanTrue)
@@ -105,6 +125,7 @@ final class VideoEncoder {
         setProp(kVTCompressionPropertyKey_ColorPrimaries, kCVImageBufferColorPrimaries_ITU_R_709_2)
         setProp(kVTCompressionPropertyKey_TransferFunction, kCVImageBufferTransferFunction_ITU_R_709_2)
         setProp(kVTCompressionPropertyKey_YCbCrMatrix, kCVImageBufferYCbCrMatrix_ITU_R_709_2)
+        return valid
     }
 
     /// Force the next encoded frame to be an IDR (loss recovery).
@@ -138,7 +159,11 @@ final class VideoEncoder {
         ) { [weak self] status, _, sampleBuffer in
             guard let self = self else { return }
             guard status == noErr, let sb = sampleBuffer else {
-                if status != noErr { logger.warn("VideoEncoder: encode callback status \(status)") }
+                if status != noErr {
+                    let message = "VideoToolbox output failed (\(status))"
+                    logger.warn("VideoEncoder: \(message)")
+                    self.onError?(message)
+                }
                 return
             }
             self.handleEncoded(sb)
@@ -146,6 +171,7 @@ final class VideoEncoder {
 
         if status != noErr {
             logger.warn("VideoEncoder: VTCompressionSessionEncodeFrame failed (\(status))")
+            onError?("VideoToolbox input failed (\(status))")
         }
     }
 

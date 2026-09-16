@@ -1,12 +1,19 @@
 #include "PerformanceMonitor.h"
 #include "Logger.h"
 
+#include <utility>
+
 namespace thunderlink {
 
-PerformanceMonitor::PerformanceMonitor() {
-    auto now = std::chrono::steady_clock::now();
+PerformanceMonitor::PerformanceMonitor(Clock clock)
+    : m_clock(std::move(clock)) {
+    auto now = Now();
     m_bandwidthStart = now;
     m_lastLogTime = now;
+}
+
+PerformanceMonitor::TimePoint PerformanceMonitor::Now() const {
+    return m_clock ? m_clock() : std::chrono::steady_clock::now();
 }
 
 void PerformanceMonitor::PacketReceived(uint32_t bytes) {
@@ -29,7 +36,7 @@ void PerformanceMonitor::FrameAssembled(float assemblyTimeUs) {
 void PerformanceMonitor::FrameRendered() {
     m_framesRendered.fetch_add(1, std::memory_order_relaxed);
 
-    auto now = std::chrono::steady_clock::now();
+    auto now = Now();
     std::lock_guard<std::mutex> lock(m_fpsMutex);
     m_frameTimes.push_back(now);
 
@@ -43,6 +50,10 @@ float PerformanceMonitor::CalculateFPS() const {
     std::lock_guard<std::mutex> lock(m_fpsMutex);
     if (m_frameTimes.size() < 2) return 0.0f;
 
+    const auto now = Now();
+    /* Do not leave an old rate visible after presentation becomes idle. */
+    if (now - m_frameTimes.back() >= std::chrono::seconds(1)) return 0.0f;
+
     auto duration = m_frameTimes.back() - m_frameTimes.front();
     float seconds = std::chrono::duration<float>(duration).count();
     if (seconds <= 0.0f) return 0.0f;
@@ -50,28 +61,29 @@ float PerformanceMonitor::CalculateFPS() const {
     return static_cast<float>(m_frameTimes.size() - 1) / seconds;
 }
 
-float PerformanceMonitor::CalculateBandwidth() {
-    auto now = std::chrono::steady_clock::now();
-    float elapsed = std::chrono::duration<float>(now - m_bandwidthStart).count();
+void PerformanceMonitor::RefreshBandwidth() const {
+    const auto now = Now();
+    std::lock_guard<std::mutex> lock(m_rateMutex);
+    const float elapsed = std::chrono::duration<float>(now - m_bandwidthStart).count();
+    if (elapsed < 1.0f) return;
 
-    if (elapsed < 0.001f) return 0.0f;
-
-    uint64_t currentBytes = m_bytesReceived.load(std::memory_order_relaxed);
-    uint64_t deltaBytes = currentBytes - m_bandwidthBytesSnapshot;
-
-    float mbps = (static_cast<float>(deltaBytes) * 8.0f) / (elapsed * 1000000.0f);
-
+    const uint64_t currentBytes = m_bytesReceived.load(std::memory_order_relaxed);
+    const uint64_t deltaBytes = currentBytes - m_bandwidthBytesSnapshot;
+    m_cachedBandwidthMbps =
+        (static_cast<float>(deltaBytes) * 8.0f) / (elapsed * 1000000.0f);
     m_bandwidthBytesSnapshot = currentBytes;
     m_bandwidthStart = now;
-
-    return mbps;
 }
 
 PerformanceStats PerformanceMonitor::GetStats() const {
+    RefreshBandwidth();
     PerformanceStats stats{};
     stats.fps = CalculateFPS();
     stats.frameLatencyMs = 0.0f; /* Requires timestamp in frame header - future work */
-    stats.bandwidthMbps = 0.0f;  /* Updated in MaybeLogStats */
+    {
+        std::lock_guard<std::mutex> lock(m_rateMutex);
+        stats.bandwidthMbps = m_cachedBandwidthMbps;
+    }
     stats.framesRendered = m_framesRendered.load(std::memory_order_relaxed);
     stats.framesDropped = m_framesDropped.load(std::memory_order_relaxed);
     stats.packetsReceived = m_packetsReceived.load(std::memory_order_relaxed);
@@ -80,35 +92,37 @@ PerformanceStats PerformanceMonitor::GetStats() const {
 }
 
 void PerformanceMonitor::MaybeLogStats() {
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration<float>(now - m_lastLogTime).count();
-    if (elapsed < 1.0f) return;
+    const auto now = Now();
+    {
+        std::lock_guard<std::mutex> lock(m_rateMutex);
+        const float elapsed = std::chrono::duration<float>(now - m_lastLogTime).count();
+        if (elapsed < 1.0f) return;
+        m_lastLogTime = now;
+    }
 
-    m_lastLogTime = now;
-
-    float fps = CalculateFPS();
-    float bw = CalculateBandwidth();
-    uint64_t rendered = m_framesRendered.load(std::memory_order_relaxed);
-    uint64_t dropped = m_framesDropped.load(std::memory_order_relaxed);
-    uint64_t packets = m_packetsReceived.load(std::memory_order_relaxed);
-    float reassembly = m_avgReassemblyTimeUs.load(std::memory_order_relaxed);
+    const PerformanceStats stats = GetStats();
 
     LOG_INFO("Stats: FPS=%.1f  BW=%.1f Mbps  Rendered=%llu  Dropped=%llu  "
              "Packets=%llu  Reassembly=%.0f us",
-             fps, bw, rendered, dropped, packets, reassembly);
+             stats.fps, stats.bandwidthMbps,
+             stats.framesRendered, stats.framesDropped, stats.packetsReceived,
+             stats.reassemblyTimeUs);
 }
 
 void PerformanceMonitor::Reset() {
     m_packetsReceived.store(0, std::memory_order_relaxed);
-    m_bytesReceived.store(0, std::memory_order_relaxed);
     m_framesRendered.store(0, std::memory_order_relaxed);
     m_framesDropped.store(0, std::memory_order_relaxed);
     m_avgReassemblyTimeUs.store(0.0f, std::memory_order_relaxed);
-    m_bandwidthBytesSnapshot = 0;
-
-    auto now = std::chrono::steady_clock::now();
-    m_bandwidthStart = now;
-    m_lastLogTime = now;
+    const auto now = Now();
+    {
+        std::lock_guard<std::mutex> lock(m_rateMutex);
+        m_bytesReceived.store(0, std::memory_order_relaxed);
+        m_bandwidthBytesSnapshot = 0;
+        m_cachedBandwidthMbps = 0.0f;
+        m_bandwidthStart = now;
+        m_lastLogTime = now;
+    }
 
     std::lock_guard<std::mutex> lock(m_fpsMutex);
     m_frameTimes.clear();

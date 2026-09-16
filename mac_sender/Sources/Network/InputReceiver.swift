@@ -1,163 +1,211 @@
 import Foundation
 
-/// Codable structure matching the JSON input protocol.
-struct InputEventMessage: Codable {
+struct InputEventMessage: Codable, Equatable {
     let type: String
+    let sessionID: StreamSessionID
     let timestamp: Int64?
     let x: Float?
     let y: Float?
     let button: Int?
     let state: String?
-    let key_code: UInt16?
+    let keyCode: UInt16?
     let modifiers: [String]?
-    let delta_x: Int32?
-    let delta_y: Int32?
+    let deltaX: Int32?
+    let deltaY: Int32?
+
+    enum CodingKeys: String, CodingKey {
+        case type, timestamp, x, y, button, state, modifiers
+        case sessionID = "session_id"
+        case keyCode = "key_code"
+        case deltaX = "delta_x"
+        case deltaY = "delta_y"
+    }
 }
 
-/// Receives input events from the Windows receiver over TCP.
-/// Listens on the input port and delivers deserialized events via a callback.
+/// Input TCP server. The receive worker exclusively closes the listening and
+/// client sockets, while lifecycle changes only update synchronized state.
 final class InputReceiver {
     typealias EventCallback = (InputEventMessage) -> Void
 
-    private var listenSocket: Int32 = -1
-    private var clientSocket: Int32 = -1
+    private let lock = NSLock()
     private var running = false
-    private var receiveThread: Thread?
+    private var activeSession: StreamSessionID?
+    private var listenSocket: Int32 = -1
     private var callback: EventCallback?
-    private let decoder = JSONDecoder()
+    private var disconnectCallback: (() -> Void)?
+    private var thread: Thread?
+    private let stopped = DispatchGroup()
 
-    func start(callback: @escaping EventCallback) -> Bool {
-        self.callback = callback
-
-        listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
-        guard listenSocket >= 0 else {
-            logger.error("InputReceiver: failed to create TCP socket")
+    func start(callback: @escaping EventCallback,
+               onDisconnect: @escaping () -> Void) -> Bool {
+        lock.lock()
+        let alreadyRunning = running
+        lock.unlock()
+        if alreadyRunning { return true }
+        let socket = Darwin.socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        guard socket >= 0 else {
+            logger.error("InputReceiver: socket failed (errno=\(errno))")
+            return false
+        }
+        var reuse: Int32 = 1
+        var noSignal: Int32 = 1
+        guard setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &reuse,
+                         socklen_t(MemoryLayout<Int32>.size)) == 0,
+              setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &noSignal,
+                         socklen_t(MemoryLayout<Int32>.size)) == 0 else {
+            logger.error("InputReceiver: socket options failed (errno=\(errno))")
+            close(socket)
+            return false
+        }
+        let flags = fcntl(socket, F_GETFL, 0)
+        guard flags >= 0, fcntl(socket, F_SETFL, flags | O_NONBLOCK) == 0 else {
+            close(socket)
             return false
         }
 
-        var reuse: Int32 = 1
-        setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, &reuse,
-                   socklen_t(MemoryLayout<Int32>.size))
-
-        var nodelay: Int32 = 1
-        setsockopt(listenSocket, IPPROTO_TCP, TCP_NODELAY, &nodelay,
-                   socklen_t(MemoryLayout<Int32>.size))
-
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = UInt16(NetworkConfig.inputPort).bigEndian
-        addr.sin_addr.s_addr = inet_addr(NetworkConfig.macIP)
-
-        let bindResult = withUnsafePointer(to: &addr) { ptr in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                bind(listenSocket, sockPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+        var address = sockaddr_in()
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = NetworkConfig.inputPort.bigEndian
+        address.sin_addr.s_addr = inet_addr(NetworkConfig.macIP)
+        let bindResult = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(socket, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-
-        guard bindResult >= 0 else {
-            logger.error("InputReceiver: bind failed (errno=\(errno))")
-            close(listenSocket)
-            listenSocket = -1
+        guard bindResult == 0, listen(socket, 1) == 0 else {
+            logger.error("InputReceiver: bind/listen failed (errno=\(errno))")
+            close(socket)
             return false
         }
 
-        guard listen(listenSocket, 1) >= 0 else {
-            logger.error("InputReceiver: listen failed (errno=\(errno))")
-            close(listenSocket)
-            listenSocket = -1
-            return false
-        }
-
+        lock.lock()
+        guard !running else { lock.unlock(); close(socket); return true }
         running = true
-        receiveThread = Thread {
-            self.receiveLoop()
-        }
-        receiveThread?.qualityOfService = .userInteractive
-        receiveThread?.start()
+        listenSocket = socket
+        self.callback = callback
+        self.disconnectCallback = onDisconnect
+        stopped.enter()
+        lock.unlock()
 
+        let worker = Thread { [weak self] in self?.receiveLoop() }
+        worker.name = "ThunderLinkInputReceiver"
+        worker.qualityOfService = .userInteractive
+        thread = worker
+        worker.start()
         logger.info("InputReceiver: listening on \(NetworkConfig.macIP):\(NetworkConfig.inputPort)")
         return true
     }
 
-    func stop() {
+    func setActiveSession(_ sessionID: StreamSessionID?) {
+        lock.lock()
+        activeSession = sessionID
+        lock.unlock()
+    }
+
+    func stop(completion: (() -> Void)? = nil) {
+        lock.lock()
         running = false
-        if clientSocket >= 0 {
-            close(clientSocket)
-            clientSocket = -1
-        }
-        if listenSocket >= 0 {
-            close(listenSocket)
-            listenSocket = -1
+        activeSession = nil
+        lock.unlock()
+        guard let completion else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [stopped] in
+            stopped.wait()
+            completion()
         }
     }
 
+    private var shouldRun: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return running
+    }
+
+    private func currentSession() -> StreamSessionID? {
+        lock.lock(); defer { lock.unlock() }
+        return activeSession
+    }
+
     private func receiveLoop() {
-        while running {
-            // Accept connection from Windows
-            var clientAddr = sockaddr_in()
-            var addrLen = socklen_t(MemoryLayout<sockaddr_in>.size)
+        lock.lock()
+        let listener = listenSocket
+        lock.unlock()
+        defer {
+            if listener >= 0 { close(listener) }
+            lock.lock()
+            listenSocket = -1
+            running = false
+            lock.unlock()
+            stopped.leave()
+        }
 
-            let client = withUnsafeMutablePointer(to: &clientAddr) { ptr in
-                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                    accept(listenSocket, sockPtr, &addrLen)
-                }
+        while shouldRun {
+            var descriptor = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
+            let result = Darwin.poll(&descriptor, 1, 100)
+            if result < 0 {
+                if errno == EINTR { continue }
+                logger.error("InputReceiver: listener poll failed (errno=\(errno))")
+                break
             }
+            guard result > 0 else { continue }
+            if (descriptor.revents & Int16(POLLERR | POLLHUP | POLLNVAL)) != 0 { break }
 
-            guard client >= 0 else {
-                if running { logger.debug("InputReceiver: accept returned \(client)") }
+            let client = accept(listener, nil, nil)
+            if client < 0 {
+                if errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR {
+                    logger.warn("InputReceiver: accept failed (errno=\(errno))")
+                }
                 continue
             }
-
+            let flags = fcntl(client, F_GETFL, 0)
+            var noDelay: Int32 = 1
+            guard flags >= 0, fcntl(client, F_SETFL, flags | O_NONBLOCK) == 0,
+                  setsockopt(client, IPPROTO_TCP, TCP_NODELAY, &noDelay,
+                             socklen_t(MemoryLayout<Int32>.size)) == 0 else {
+                close(client)
+                continue
+            }
             logger.info("InputReceiver: Windows connected")
-            clientSocket = client
-
-            // Read messages from this client
             handleClient(client)
-
             close(client)
-            clientSocket = -1
+            disconnectCallback?()
             logger.info("InputReceiver: Windows disconnected")
         }
     }
 
-    private func handleClient(_ sock: Int32) {
-        while running {
-            // Read 4-byte length prefix (big-endian)
-            var lenBuf = [UInt8](repeating: 0, count: 4)
-            guard readExact(sock, buffer: &lenBuf, count: 4) else { break }
-
-            let len = (UInt32(lenBuf[0]) << 24) | (UInt32(lenBuf[1]) << 16) |
-                      (UInt32(lenBuf[2]) << 8) | UInt32(lenBuf[3])
-
-            guard len > 0 && len < 65536 else {
-                logger.warn("InputReceiver: invalid message length \(len)")
+    private func handleClient(_ socket: Int32) {
+        let decoder = FramedJSONDecoder()
+        let jsonDecoder = JSONDecoder()
+        while shouldRun {
+            do { try decoder.checkDeadline() } catch { break }
+            var descriptor = pollfd(fd: socket, events: Int16(POLLIN), revents: 0)
+            let result = Darwin.poll(&descriptor, 1, 100)
+            if result < 0 {
+                if errno == EINTR { continue }
                 break
             }
+            guard result > 0 else { continue }
+            if (descriptor.revents & Int16(POLLERR | POLLHUP | POLLNVAL)) != 0 { break }
 
-            // Read JSON payload
-            var jsonBuf = [UInt8](repeating: 0, count: Int(len))
-            guard readExact(sock, buffer: &jsonBuf, count: Int(len)) else { break }
-
-            // Decode and deliver
-            let data = Data(jsonBuf)
+            var bytes = [UInt8](repeating: 0, count: 16_384)
+            let count = recv(socket, &bytes, bytes.count, 0)
+            if count == 0 { break }
+            if count < 0 {
+                if errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR { continue }
+                break
+            }
             do {
-                let event = try decoder.decode(InputEventMessage.self, from: data)
-                callback?(event)
+                for object in try decoder.append(Data(bytes.prefix(count))) {
+                    let data = try JSONSerialization.data(withJSONObject: object)
+                    let event = try jsonDecoder.decode(InputEventMessage.self, from: data)
+                    guard event.sessionID == currentSession() else {
+                        logger.debug("InputReceiver: dropped stale input for \(event.sessionID)")
+                        continue
+                    }
+                    callback?(event)
+                }
             } catch {
-                logger.warn("InputReceiver: JSON decode error: \(error)")
+                logger.warn("InputReceiver: malformed input stream: \(error)")
+                break
             }
         }
-    }
-
-    private func readExact(_ sock: Int32, buffer: inout [UInt8], count: Int) -> Bool {
-        var received = 0
-        while received < count {
-            let r = buffer.withUnsafeMutableBufferPointer { buf -> Int in
-                recv(sock, buf.baseAddress!.advanced(by: received), count - received, 0)
-            }
-            if r <= 0 { return false }
-            received += r
-        }
-        return true
     }
 }

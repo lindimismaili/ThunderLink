@@ -1,0 +1,27 @@
+{
+  "version": 4,
+  "port": 50004,
+  "service": "_thunderlink-cross._tcp",
+  "lease_ms": 1000,
+  "ping_ms": 250,
+  "queue_limit": 256,
+  "pairing": {
+    "client_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+    "server_fingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+    "verification_code": "2C5A757AF655"
+  },
+  "topology": {
+    "type": "topology", "revision": 7,
+    "displays": [
+      {"id": "fixture-external", "name": "External", "x": -1920, "y": -180,
+       "width": 1920, "height": 1080, "scale": 1, "rotation": 0, "primary": false},
+      {"id": "fixture-retina", "name": "Built-in", "x": 0, "y": 0,
+       "width": 1512, "height": 982, "scale": 2, "rotation": 0, "primary": true}
+    ]
+  },
+  "enter": {
+    "type": "enter", "session_id": "1020304050607080", "topology_revision": 7,
+    "generation": 1, "display_id": "fixture-external", "x": 0.5, "y": 0.5
+  },
+  "expected_native_center": {"x": -960, "y": 360}
+}

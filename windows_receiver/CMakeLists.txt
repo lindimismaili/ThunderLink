@@ -1,12 +1,21 @@
 cmake_minimum_required(VERSION 3.20)
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 project(ThunderLinkReceiver LANGUAGES CXX)
+
+if(NOT WIN32)
+    message(FATAL_ERROR "The receiver requires native Windows. For portable regression tests use cmake -S ../tests -B build-tests.")
+endif()
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Prevent Windows header pollution
-add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX -DUNICODE -D_UNICODE)
+add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX -DUNICODE -D_UNICODE -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00)
 
 # Repo root + shared cross-device log directory (logs/windows.log).
 get_filename_component(TLNK_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
@@ -37,73 +46,19 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_dx12.cpp
 )
 
-# ---------- Shader Compilation ----------
-
-set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
-set(SHADER_OUTPUT_DIR ${CMAKE_BINARY_DIR}/shaders)
-file(MAKE_DIRECTORY ${SHADER_OUTPUT_DIR})
-
-# Find a shader compiler (dxc preferred, fxc fallback). Search every installed
-# Windows 10/11 SDK bin version rather than a hard-coded list.
-file(GLOB WINSDK_BIN_DIRS
-    "C:/Program Files (x86)/Windows Kits/10/bin/10.*/x64"
-    "C:/Program Files/Windows Kits/10/bin/10.*/x64"
-)
-
-find_program(DXC_EXECUTABLE dxc HINTS ${WINSDK_BIN_DIRS})
-
-if(NOT DXC_EXECUTABLE)
-    # Fallback to fxc if dxc is not available
-    find_program(FXC_EXECUTABLE fxc HINTS ${WINSDK_BIN_DIRS})
-endif()
-
-if(DXC_EXECUTABLE)
-    message(STATUS "Shader compiler: ${DXC_EXECUTABLE}")
-elseif(FXC_EXECUTABLE)
-    message(STATUS "Shader compiler: ${FXC_EXECUTABLE}")
-endif()
-
-if(DXC_EXECUTABLE)
-    add_custom_command(
-        OUTPUT ${SHADER_OUTPUT_DIR}/vertex.cso
-        COMMAND ${DXC_EXECUTABLE} -T vs_6_0 -E main
-                ${SHADER_DIR}/vertex.hlsl -Fo ${SHADER_OUTPUT_DIR}/vertex.cso
-        DEPENDS ${SHADER_DIR}/vertex.hlsl
-        COMMENT "Compiling vertex shader with DXC"
-    )
-    add_custom_command(
-        OUTPUT ${SHADER_OUTPUT_DIR}/pixel.cso
-        COMMAND ${DXC_EXECUTABLE} -T ps_6_0 -E main
-                ${SHADER_DIR}/pixel.hlsl -Fo ${SHADER_OUTPUT_DIR}/pixel.cso
-        DEPENDS ${SHADER_DIR}/pixel.hlsl
-        COMMENT "Compiling pixel shader with DXC"
-    )
-elseif(FXC_EXECUTABLE)
-    add_custom_command(
-        OUTPUT ${SHADER_OUTPUT_DIR}/vertex.cso
-        COMMAND ${FXC_EXECUTABLE} /T vs_5_1 /E main
-                /Fo ${SHADER_OUTPUT_DIR}/vertex.cso ${SHADER_DIR}/vertex.hlsl
-        DEPENDS ${SHADER_DIR}/vertex.hlsl
-        COMMENT "Compiling vertex shader with FXC"
-    )
-    add_custom_command(
-        OUTPUT ${SHADER_OUTPUT_DIR}/pixel.cso
-        COMMAND ${FXC_EXECUTABLE} /T ps_5_1 /E main
-                /Fo ${SHADER_OUTPUT_DIR}/pixel.cso ${SHADER_DIR}/pixel.hlsl
-        DEPENDS ${SHADER_DIR}/pixel.hlsl
-        COMMENT "Compiling pixel shader with FXC"
-    )
-else()
-    message(WARNING "No shader compiler found (dxc or fxc). Shaders will be compiled at runtime using D3DCompileFromFile.")
-endif()
-
-if(DXC_EXECUTABLE OR FXC_EXECUTABLE)
-    add_custom_target(Shaders ALL
-        DEPENDS
-            ${SHADER_OUTPUT_DIR}/vertex.cso
-            ${SHADER_OUTPUT_DIR}/pixel.cso
-    )
-endif()
+# All runtime resources are embedded; launching never depends on the cwd.
+option(TLNK_PORTABLE "Use per-user logs and produce the portable app" OFF)
+get_filename_component(TLNK_PACKAGING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../packaging" ABSOLUTE)
+file(READ "${TLNK_PACKAGING_DIR}/VERSION" TLNK_VERSION)
+string(STRIP "${TLNK_VERSION}" TLNK_VERSION)
+string(REPLACE "." "," TLNK_VERSION_COMMAS "${TLNK_VERSION}")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/shaders/vertex.hlsl" TLNK_VERTEX_SOURCE)
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/shaders/pixel.hlsl" TLNK_PIXEL_SOURCE)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS shaders/vertex.hlsl shaders/pixel.hlsl)
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+configure_file("${TLNK_PACKAGING_DIR}/windows/EmbeddedShaders.h.in" "generated/EmbeddedShaders.h" @ONLY)
+enable_language(RC)
+configure_file("${TLNK_PACKAGING_DIR}/windows/ThunderLink.rc.in" "generated/ThunderLink.rc" @ONLY)
 
 # ---------- Main Executable ----------
 
@@ -120,6 +75,12 @@ set(SOURCES
     src/Renderer/SwapChain.cpp
     src/Input/InputCapture.cpp
     src/Input/InputMapper.cpp
+    src/Cross/CrossController.cpp
+    src/Cross/CrossDisplays.cpp
+    src/Cross/CrossInputController.cpp
+    src/Cross/CrossTransport.cpp
+    src/Cross/CrossDiscovery.cpp
+    src/Cross/CrossIdentity.cpp
     src/Utils/FrameBuffer.cpp
     src/Utils/Logger.cpp
     src/Utils/PerformanceMonitor.cpp
@@ -143,9 +104,11 @@ set(HEADERS
     src/Utils/PerformanceMonitor.h
 )
 
-add_executable(ThunderLinkReceiver WIN32 ${SOURCES} ${HEADERS} ${IMGUI_SOURCES})
+add_executable(ThunderLinkReceiver WIN32 ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/generated/ThunderLink.rc")
+set_target_properties(ThunderLinkReceiver PROPERTIES OUTPUT_NAME ThunderLink)
 
 target_include_directories(ThunderLinkReceiver PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/../common
     ${IMGUI_DIR}
@@ -158,34 +121,43 @@ target_link_libraries(ThunderLinkReceiver PRIVATE
     d3dcompiler
     dxguid
     ws2_32
+    bcrypt
+    ncrypt
+    crypt32
+    secur32
+    advapi32
+    dnsapi
+    iphlpapi
+    wtsapi32
     # Media Foundation (hardware H.264/HEVC decode)
+    mf
     mfplat
     mfuuid
     wmcodecdspuuid
     # Command-line parsing (CommandLineToArgvW)
     shell32
+    ole32
+    dwmapi
     nlohmann_json::nlohmann_json
 )
 
-# Pass shader output directory + cross-device log path as defines
-target_compile_definitions(ThunderLinkReceiver PRIVATE
-    SHADER_DIR=L"${SHADER_OUTPUT_DIR}"
-    TLNK_LOG_FILE="${TLNK_REPO_ROOT}/logs/windows.log"
-)
-
-if(DXC_EXECUTABLE OR FXC_EXECUTABLE)
-    add_dependencies(ThunderLinkReceiver Shaders)
+if(TLNK_PORTABLE)
+    target_compile_definitions(ThunderLinkReceiver PRIVATE TLNK_PORTABLE=1)
+else()
+    target_compile_definitions(ThunderLinkReceiver PRIVATE TLNK_LOG_FILE="${TLNK_REPO_ROOT}/logs/windows.log")
+endif()
+if(MSVC)
+    # Manifest is already embedded by the resource compiler.
+    # Cross does not need Media Foundation. Screen Share checks availability
+    # before invoking its delayed imports so Windows N can still run Cross.
+    target_link_libraries(ThunderLinkReceiver PRIVATE delayimp)
+    target_link_options(ThunderLinkReceiver PRIVATE /MANIFEST:NO /DELAYLOAD:mfplat.dll /DELAYLOAD:mf.dll)
 endif()
 
-# Always copy the shader SOURCES into the output shader dir so the runtime
-# D3DCompileFromFile fallback works even when no dxc/fxc is available. The exe
-# runs with build/ as its working directory, so it resolves "shaders/*.hlsl".
-add_custom_command(TARGET ThunderLinkReceiver POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_OUTPUT_DIR}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${SHADER_DIR}/vertex.hlsl ${SHADER_DIR}/pixel.hlsl ${SHADER_OUTPUT_DIR}
-    COMMENT "Copying shader sources for runtime fallback"
-)
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
+endif()
 
 # MSVC-specific settings
 if(MSVC)

@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <algorithm>
+#include <utility>
 
 namespace thunderlink {
 
@@ -33,7 +34,8 @@ bool TextureManager::Initialize(ID3D12Device* device, uint32_t maxWidth, uint32_
         D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     if (!CreateUploadBuffers(maxWidth, maxHeight)) return false;
-    if (!CreateTextures(maxWidth, maxHeight)) return false;
+    if (!CreateTextures(maxWidth, maxHeight,
+                        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)) return false;
 
     LOG_INFO("TextureManager: initialized (NV12), max %ux%u", maxWidth, maxHeight);
     return true;
@@ -42,17 +44,20 @@ bool TextureManager::Initialize(ID3D12Device* device, uint32_t maxWidth, uint32_
 void TextureManager::Shutdown() {
     m_texY.Reset();
     m_texUV.Reset();
+    m_previousTexY.Reset();
+    m_previousTexUV.Reset();
     for (UINT i = 0; i < UPLOAD_BUFFER_COUNT; i++) {
         m_uploadBuffers[i].Reset();
     }
     m_srvHeap.Reset();
 }
 
-bool TextureManager::CreateTextures(uint32_t width, uint32_t height) {
-    m_texY.Reset();
-    m_texUV.Reset();
-
-    auto makeTex = [&](uint32_t w, uint32_t h, DXGI_FORMAT fmt, ComPtr<ID3D12Resource>& out) -> bool {
+bool TextureManager::CreateTextures(uint32_t width, uint32_t height,
+                                    D3D12_RESOURCE_STATES initialState) {
+    ComPtr<ID3D12Resource> newY;
+    ComPtr<ID3D12Resource> newUV;
+    auto makeTex = [&](uint32_t w, uint32_t h, DXGI_FORMAT fmt,
+                       ComPtr<ID3D12Resource>& out) -> bool {
         D3D12_RESOURCE_DESC texDesc = {};
         texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
         texDesc.Width = w;
@@ -69,7 +74,7 @@ bool TextureManager::CreateTextures(uint32_t width, uint32_t height) {
 
         HRESULT hr = m_device->CreateCommittedResource(
             &heapProps, D3D12_HEAP_FLAG_NONE, &texDesc,
-            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&out));
+            initialState, nullptr, IID_PPV_ARGS(&out));
         if (FAILED(hr)) {
             LOG_ERROR("TextureManager: CreateCommittedResource %ux%u fmt=%d failed (hr=0x%08X)",
                       w, h, (int)fmt, hr);
@@ -78,15 +83,64 @@ bool TextureManager::CreateTextures(uint32_t width, uint32_t height) {
         return true;
     };
 
-    if (!makeTex(width, height, FORMAT_Y, m_texY)) return false;
-    if (!makeTex(width / 2, height / 2, FORMAT_UV, m_texUV)) return false;
+    if (!makeTex(width, height, FORMAT_Y, newY)) return false;
+    if (!makeTex(width / 2, height / 2, FORMAT_UV, newUV)) return false;
 
+    m_texY = std::move(newY);
+    m_texUV = std::move(newUV);
     m_textureWidth = width;
     m_textureHeight = height;
-    m_currentState = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    m_currentState = initialState;
 
     CreateSRVs();
     return true;
+}
+
+bool TextureManager::EnsureTextureSize(uint32_t width, uint32_t height) {
+    if (width == m_textureWidth && height == m_textureHeight) return true;
+    if (width == 0 || height == 0 || (width & 1u) || (height & 1u) ||
+        width > m_maxWidth || height > m_maxHeight ||
+        m_previousTexY || m_previousTexUV) {
+        return false;
+    }
+
+    LOG_INFO("TextureManager: resizing %ux%u -> %ux%u",
+             m_textureWidth, m_textureHeight, width, height);
+    m_previousTexY = m_texY;
+    m_previousTexUV = m_texUV;
+    m_previousWidth = m_textureWidth;
+    m_previousHeight = m_textureHeight;
+    m_previousState = m_currentState;
+
+    if (!CreateTextures(width, height, D3D12_RESOURCE_STATE_COPY_DEST)) {
+        m_texY = std::move(m_previousTexY);
+        m_texUV = std::move(m_previousTexUV);
+        m_textureWidth = m_previousWidth;
+        m_textureHeight = m_previousHeight;
+        m_currentState = m_previousState;
+        CreateSRVs();
+        return false;
+    }
+    return true;
+}
+
+void TextureManager::CommitTextureResize() {
+    m_previousTexY.Reset();
+    m_previousTexUV.Reset();
+    m_previousWidth = 0;
+    m_previousHeight = 0;
+}
+
+void TextureManager::RollbackTextureResize() {
+    if (!m_previousTexY || !m_previousTexUV) return;
+    m_texY = std::move(m_previousTexY);
+    m_texUV = std::move(m_previousTexUV);
+    m_textureWidth = m_previousWidth;
+    m_textureHeight = m_previousHeight;
+    m_currentState = m_previousState;
+    m_previousWidth = 0;
+    m_previousHeight = 0;
+    CreateSRVs();
 }
 
 void TextureManager::CreateSRVs() {
@@ -150,18 +204,12 @@ bool TextureManager::CreateUploadBuffers(uint32_t maxWidth, uint32_t maxHeight) 
 bool TextureManager::UploadNV12(ID3D12GraphicsCommandList* cmdList,
                                 const uint8_t* yPlane, const uint8_t* uvPlane,
                                 uint32_t width, uint32_t height,
-                                uint32_t yStride, uint32_t uvStride) {
-    if (!yPlane || !uvPlane || width == 0 || height == 0) return false;
-    if (width > m_maxWidth || height > m_maxHeight) return false;
-
-    if (width != m_textureWidth || height != m_textureHeight) {
-        LOG_INFO("TextureManager: resizing %ux%u -> %ux%u",
-                 m_textureWidth, m_textureHeight, width, height);
-        if (m_currentState != D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) {
-            TransitionToShaderResource(cmdList);
-        }
-        if (!CreateTextures(width, height)) return false;
-    }
+                                uint32_t yStride, uint32_t uvStride,
+                                UINT uploadSlot) {
+    if (!cmdList || !yPlane || !uvPlane || width == 0 || height == 0 ||
+        (width & 1u) || (height & 1u) || yStride < width || uvStride < width ||
+        width > m_maxWidth || height > m_maxHeight ||
+        width != m_textureWidth || height != m_textureHeight) return false;
 
     const uint32_t chromaH = height / 2;
     const uint32_t yRowPitch  = Align(width, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
@@ -170,8 +218,7 @@ bool TextureManager::UploadNV12(ID3D12GraphicsCommandList* cmdList,
     const uint64_t uvOffset   = Align((uint32_t)std::min<uint64_t>(ySize, 0xFFFFFFFF),
                                       D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
-    ID3D12Resource* uploadBuf = m_uploadBuffers[m_currentUploadBuffer].Get();
-    m_currentUploadBuffer = (m_currentUploadBuffer + 1) % UPLOAD_BUFFER_COUNT;
+    ID3D12Resource* uploadBuf = m_uploadBuffers[uploadSlot % UPLOAD_BUFFER_COUNT].Get();
 
     void* mapped = nullptr;
     D3D12_RANGE readRange = {0, 0};
@@ -196,6 +243,11 @@ bool TextureManager::UploadNV12(ID3D12GraphicsCommandList* cmdList,
     }
 
     uploadBuf->Unmap(0, nullptr);
+
+    /* Mapping/copying CPU data is the only fallible part. Record transitions
+     * only after it succeeds so an abandoned command list cannot desynchronize
+     * the tracked resource state. */
+    TransitionToCopyDest(cmdList);
 
     /* Copy Y region -> Y texture */
     D3D12_TEXTURE_COPY_LOCATION ySrc = {};
@@ -230,6 +282,8 @@ bool TextureManager::UploadNV12(ID3D12GraphicsCommandList* cmdList,
     uvDstLoc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
     uvDstLoc.SubresourceIndex = 0;
     cmdList->CopyTextureRegion(&uvDstLoc, 0, 0, 0, &uvSrc, nullptr);
+
+    TransitionToShaderResource(cmdList);
 
     return true;
 }

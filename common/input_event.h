@@ -13,7 +13,9 @@ typedef enum {
     TLNK_INPUT_MOUSE_MOVE   = 1,
     TLNK_INPUT_MOUSE_BUTTON = 2,
     TLNK_INPUT_KEY          = 3,
-    TLNK_INPUT_SCROLL       = 4
+    TLNK_INPUT_SCROLL       = 4,
+    /* Idempotently releases every held remote key/button for this session. */
+    TLNK_INPUT_RESET        = 5
 } TlnkInputType;
 
 /* Mouse buttons */
@@ -49,12 +51,14 @@ typedef enum {
 #define TLNK_JSON_MODIFIERS  "modifiers"
 #define TLNK_JSON_DELTA_X    "delta_x"
 #define TLNK_JSON_DELTA_Y    "delta_y"
+#define TLNK_JSON_SESSION_ID "session_id"
 
 /* JSON type string values */
 #define TLNK_JSON_TYPE_MOUSE_MOVE   "mouse_move"
 #define TLNK_JSON_TYPE_MOUSE_BUTTON "mouse_button"
 #define TLNK_JSON_TYPE_KEY          "key"
 #define TLNK_JSON_TYPE_SCROLL       "scroll"
+#define TLNK_JSON_TYPE_RESET        "reset"
 
 /* JSON state string values */
 #define TLNK_JSON_STATE_DOWN "down"

@@ -1,0 +1,6 @@
+#pragma once
+// Generated from the repository's canonical HLSL sources by CMake.
+namespace thunderlink::shaders {
+inline constexpr char vertex[] = R"TLNKSHADER(@TLNK_VERTEX_SOURCE@)TLNKSHADER";
+inline constexpr char pixel[] = R"TLNKSHADER(@TLNK_PIXEL_SOURCE@)TLNKSHADER";
+}

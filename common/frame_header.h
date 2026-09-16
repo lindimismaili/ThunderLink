@@ -2,7 +2,7 @@
 
 /*
  * ThunderLink Frame Packet Header
- * 40-byte binary header prepended to every UDP video packet.
+ * 48-byte binary header prepended to every UDP video packet.
  * Packed to match wire format exactly on both platforms (little-endian).
  *
  * For compressed video (H.264/HEVC) a "frame" is one encoded access unit. The
@@ -27,14 +27,15 @@ typedef struct {
     uint32_t height;            /* Frame height in pixels                           off 32 */
     uint16_t format;            /* TlnkPixelFormat (BGRA32 / H264 / HEVC)           off 36 */
     uint16_t flags;             /* TlnkFrameFlags bitmask                           off 38 */
-} TlnkFrameHeader;              /*                                                  end 40 */
+    uint64_t session_id;        /* Receiver-issued stream session identifier        off 40 */
+} TlnkFrameHeader;              /*                                                  end 48 */
 #pragma pack(pop)
 
 /* Compile-time size verification */
 #ifdef __cplusplus
 static_assert(sizeof(TlnkFrameHeader) == TLNK_HEADER_SIZE,
-              "TlnkFrameHeader must be exactly 40 bytes (TLNK_HEADER_SIZE)");
+              "TlnkFrameHeader must be exactly 48 bytes (TLNK_HEADER_SIZE)");
 #else
 _Static_assert(sizeof(TlnkFrameHeader) == TLNK_HEADER_SIZE,
-               "TlnkFrameHeader must be exactly 40 bytes (TLNK_HEADER_SIZE)");
+               "TlnkFrameHeader must be exactly 48 bytes (TLNK_HEADER_SIZE)");
 #endif

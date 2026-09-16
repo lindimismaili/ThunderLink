@@ -18,8 +18,7 @@ enum LinkSetup {
     /// Detect the link-local adapter and assign `NetworkConfig.macIP` to it if
     /// it isn't already there. Safe to call on every launch; no-ops (and never
     /// prompts) once the address is in place.
-    static func ensureLinkAddress() {
-        guard NetworkConfig.autoAssignIP else { return }
+    static func ensureLinkAddress(service selectedService: String? = nil) {
 
         let ip = NetworkConfig.macIP
         // Nothing to pin when binding to "any", or for an unset address.
@@ -30,18 +29,17 @@ enum LinkSetup {
             return
         }
 
-        guard let (device, service) = findLinkLocalService() else {
-            logger.error("LinkSetup: no link-local adapter found to host \(ip). " +
-                         "Connect the direct-link cable, or set it manually: " +
-                         "System Settings → Network → <adapter> → Configure IPv4: Manually → \(ip)")
+        guard let service = selectedService ?? findLinkLocalService()?.service else {
+            logger.error("LinkSetup: no direct-link adapter found. Configure the address in System Settings → Network.")
             return
         }
 
-        logger.info("LinkSetup: assigning \(ip)/\(NetworkConfig.linkSubnet) to '\(service)' (\(device)) — admin prompt may appear")
+        logger.info("LinkSetup: assigning \(ip)/\(NetworkConfig.linkSubnet) to '\(service)' — admin prompt may appear")
 
         // Persistent, route-safe: no router argument, so this never becomes the
         // system default gateway even though the adapter is high in the service order.
-        let command = "/usr/sbin/networksetup -setmanual \"\(service)\" \(ip) \(NetworkConfig.linkSubnet)"
+        let quotedService = "'" + service.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+        let command = "/usr/sbin/networksetup -setmanual \(quotedService) \(ip) \(NetworkConfig.linkSubnet)"
         let (ok, errOut) = runWithAdminPrivileges(command)
 
         guard ok else {
@@ -89,7 +87,7 @@ enum LinkSetup {
     /// IPv4 is a self-assigned link-local (`169.254.x.x`) and which isn't Wi-Fi.
     /// Returns its BSD device name and its network-service name (needed by
     /// `networksetup -setmanual`).
-    private static func findLinkLocalService() -> (device: String, service: String)? {
+    static func findLinkLocalService() -> (device: String, service: String)? {
         let addresses = interfaceAddresses()
         let serviceForDevice = deviceServiceMap()
 
@@ -111,7 +109,7 @@ enum LinkSetup {
             return (dev, svc)
         }
         if let wired = ranked.first(where: { !isWiFi($0.1) }) { return wired }
-        return ranked.first
+        return nil
     }
 
     /// Parse `networksetup -listnetworkserviceorder` into device → service name.

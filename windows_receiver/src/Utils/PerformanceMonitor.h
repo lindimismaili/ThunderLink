@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <mutex>
 
 namespace thunderlink {
@@ -20,7 +21,10 @@ struct PerformanceStats {
 
 class PerformanceMonitor {
 public:
-    PerformanceMonitor();
+    using Clock = std::function<std::chrono::steady_clock::time_point()>;
+
+    /* An injectable clock keeps rate-window tests deterministic. */
+    explicit PerformanceMonitor(Clock clock = {});
 
     /* Called from the network thread */
     void PacketReceived(uint32_t bytes);
@@ -39,6 +43,9 @@ public:
     void Reset();
 
 private:
+    using TimePoint = std::chrono::steady_clock::time_point;
+    TimePoint Now() const;
+    void RefreshBandwidth() const;
     /* Atomic counters for cross-thread access */
     std::atomic<uint64_t> m_packetsReceived{0};
     std::atomic<uint64_t> m_bytesReceived{0};
@@ -47,20 +54,22 @@ private:
 
     /* FPS tracking (render thread only) */
     mutable std::mutex m_fpsMutex;
-    std::deque<std::chrono::steady_clock::time_point> m_frameTimes;
+    std::deque<TimePoint> m_frameTimes;
 
     /* Reassembly timing (network thread only) */
     std::atomic<float> m_avgReassemblyTimeUs{0.0f};
 
     /* Bandwidth tracking */
-    std::chrono::steady_clock::time_point m_bandwidthStart;
-    uint64_t m_bandwidthBytesSnapshot{0};
+    mutable std::mutex m_rateMutex;
+    Clock m_clock;
+    mutable TimePoint m_bandwidthStart;
+    mutable uint64_t m_bandwidthBytesSnapshot{0};
+    mutable float m_cachedBandwidthMbps{0.0f};
 
     /* Periodic logging */
-    std::chrono::steady_clock::time_point m_lastLogTime;
+    TimePoint m_lastLogTime;
 
     float CalculateFPS() const;
-    float CalculateBandwidth();
 };
 
 } // namespace thunderlink

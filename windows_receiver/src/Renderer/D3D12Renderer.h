@@ -23,7 +23,7 @@ public:
     void Shutdown();
 
     /* Upload a new decoded NV12 frame and render it to screen */
-    void RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
+    bool RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
                      uint32_t width, uint32_t height,
                      uint32_t yStride, uint32_t uvStride);
 
@@ -90,6 +90,8 @@ private:
     ComPtr<ID3D12DescriptorHeap> m_imguiSrvHeap;
     std::function<void()> m_uiCallback;
     bool m_imguiInitialized = false;
+    HWND m_uiWindow = nullptr;
+    float m_uiScale = 1.0f, m_fontScale = 1.0f;
 
     /* State */
     bool m_initialized = false;

@@ -58,6 +58,17 @@ void Logger::Init(const char* logFile, bool allocConsole) {
     s_initialized = true;
 }
 
+#ifdef _WIN32
+void Logger::InitWide(const wchar_t* logFile, bool allocConsole) {
+    Init(nullptr, allocConsole);
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if (logFile && !s_file) {
+        _wfopen_s(&s_file, logFile, L"a");
+        if (s_file) { fprintf(s_file, "\n===== ThunderLink Windows session start =====\n"); fflush(s_file); }
+    }
+}
+#endif
+
 void Logger::Shutdown() {
     std::lock_guard<std::mutex> lock(s_mutex);
     if (s_file) {

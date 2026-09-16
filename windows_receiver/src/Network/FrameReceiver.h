@@ -30,13 +30,6 @@ private:
     std::thread m_receiveThread;
     std::atomic<bool> m_running{false};
 
-    /* Eviction counter - evict stale frames every N packets */
-    uint32_t m_evictionCounter = 0;
-    static constexpr uint32_t EVICTION_INTERVAL = 500;
-
-    /* Diagnostic: log the first video packet so we can tell if UDP video is
-     * arriving at all (e.g. dropped by a non-jumbo link vs. a decode problem). */
-    bool m_firstPacketLogged = false;
 };
 
 } // namespace thunderlink

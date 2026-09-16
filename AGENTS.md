@@ -35,6 +35,10 @@ forwards mouse and keyboard input to the Mac.
   `mac_sender/Sources/Network/NetworkConfig.swift` as a coupled wire contract.
   Update and validate both sides in the same change whenever a protocol
   constant, port, enum, packet layout, timeout, or format changes.
+- Keep Cross's authenticated input-only lifecycle separate from Screen Share;
+  follow `common/CROSS_PROTOCOL.md` for pairing, ownership, and lease changes.
+  Validate each physical network path separately using `docs/CROSS.md` and
+  the Cross sections of both native testing guides.
 - Do not claim cross-device success from a build or single-machine run. Report
   the host OS, checks actually run, and every unverified native or physical
   device gate.
@@ -51,7 +55,10 @@ forwards mouse and keyboard input to the Mac.
 
 ## Validation Standard
 
-There is no automated test target. At minimum, build on the affected native
-platform and perform the applicable local checks. Networking, protocol,
+Run the portable CTest suites in `tests/` and the sender's `swift test` target
+for affected logic, then build on the affected native platform and perform
+the applicable local checks. Treat protocol v4 session IDs and the 48-byte
+header as a coordinated Mac/Windows contract; reject incompatible versions.
+Networking, protocol,
 capture, decode, rendering, or input changes require the two-device protocol in
 both testing guides before they can be called fully verified.

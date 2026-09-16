@@ -1,115 +1,125 @@
 #pragma once
 
-#include <cstdint>
-#include <vector>
-#include <unordered_map>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
 #include <chrono>
+#include <condition_variable>
+#include <cstdint>
 #include <functional>
+#include <mutex>
+#include <queue>
+#include <unordered_map>
+#include <vector>
 
-#include "frame_header.h"
+#include "frame_metadata.h"
 
 namespace thunderlink {
 
 class PerformanceMonitor;
 
-/* A reassembled video frame handed to the decoder.
- * For compressed formats `data`/`size` is one Annex-B access unit; for the
- * legacy BGRA32 mode it is the raw pixel buffer. */
+/* A reassembled video frame handed to the decoder. The slot remains owned by
+ * FrameBuffer until ReleaseFrame(sessionId, frameId) is called. */
 struct ReceivedFrame {
-    const uint8_t* data;
-    uint32_t size;
-    uint32_t width;
-    uint32_t height;
-    uint64_t frameId;
-    uint16_t format;   /* TlnkPixelFormat */
-    uint16_t flags;    /* TlnkFrameFlags (TLNK_FLAG_KEY_FRAME) */
+    const uint8_t* data = nullptr;
+    uint32_t size = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint64_t sessionId = 0;
+    uint64_t frameId = 0;
+    uint16_t format = 0;
+    uint16_t flags = 0;
 };
 
 class FrameBuffer {
 public:
+    using TimePoint = std::chrono::steady_clock::time_point;
+    using Clock = std::function<TimePoint()>;
+
     FrameBuffer(uint32_t poolSize, uint32_t maxWidth, uint32_t maxHeight,
-                PerformanceMonitor* perfMon = nullptr);
-    ~FrameBuffer();
+                PerformanceMonitor* perfMon = nullptr, Clock clock = Clock{});
+    ~FrameBuffer() = default;
 
-    /* Called from network receive thread.
-     * Copies packet payload into the correct position in the frame buffer. */
-    void InsertPacket(const TlnkFrameHeader& header, const uint8_t* payload);
+    /* A session change discards queued/incomplete frames from the old stream.
+     * Frames already returned to a decoder retain their slots until their
+     * session-qualified release arrives. */
+    void SetSession(uint64_t sessionId, uint32_t width = 0, uint32_t height = 0,
+                    uint16_t format = UINT16_MAX);
+    uint64_t GetSession() const;
 
-    /* Called from render thread. Blocks until a complete frame is available
-     * or timeout expires. Returns false on timeout.
-     *
-     * Frames are returned in arrival order (oldest first) so the decoder's
-     * inter-frame dependency chain stays intact — we never skip a P-frame. */
+    /* Called by the UDP receive thread after DecodeFrameHeader has parsed the
+     * complete datagram header. Returns false when the packet is invalid or
+     * belongs to another session. */
+    bool InsertPacket(const FrameMetadata& header, const uint8_t* payload);
+
     bool WaitForFrame(ReceivedFrame* out, uint32_t timeoutMs);
+    void ReleaseFrame(uint64_t sessionId, uint64_t frameId);
 
-    /* Called from render thread after the frame has been consumed (decoded).
-     * Returns the buffer slot back to the pool. */
-    void ReleaseFrame(uint64_t frameId);
+    /* Called from the receiver's periodic clock tick, including while UDP is
+     * idle. A zero argument uses the protocol's 50 ms deadline. */
+    void EvictStaleFrames(uint32_t maxAgeMs = TLNK_FRAME_TIMEOUT_MS);
 
-    /* Called periodically to drop incomplete frames older than maxAgeMs. */
-    void EvictStaleFrames(uint32_t maxAgeMs);
-
-    /* Invoked whenever a frame is dropped/lost (incomplete eviction, pool
-     * exhaustion, or an out-of-order skip). The owner wires this to a
-     * (rate-limited) keyframe request so the stream can recover. */
-    void SetOnFrameLost(std::function<void()> cb) { m_onFrameLost = std::move(cb); }
+    /* The callback is copied while the state lock is held and invoked after it
+     * is released, so it may enqueue control work without lock inversion. */
+    void SetOnFrameLost(std::function<void()> cb);
 
 private:
-    struct FrameAssembly {
+    struct FrameKey {
+        uint64_t sessionId = 0;
         uint64_t frameId = 0;
-        uint32_t width = 0;
-        uint32_t height = 0;
-        uint32_t totalPackets = 0;
-        uint32_t receivedPackets = 0;
-        uint32_t frameTotalBytes = 0;
-        uint16_t format = 0;
-        uint16_t flags = 0;
-        uint32_t poolIndex = 0;
-        std::vector<bool> packetReceived;
-        std::chrono::steady_clock::time_point startTime;
 
-        bool IsComplete() const { return receivedPackets == totalPackets; }
+        bool operator==(const FrameKey& other) const {
+            return sessionId == other.sessionId && frameId == other.frameId;
+        }
+    };
+
+    struct FrameKeyHash {
+        size_t operator()(const FrameKey& key) const {
+            return static_cast<size_t>(key.sessionId ^
+                (key.frameId + 0x9e3779b97f4a7c15ULL + (key.sessionId << 6) +
+                 (key.sessionId >> 2)));
+        }
+    };
+
+    struct FrameAssembly {
+        FrameMetadata metadata{};
+        uint32_t receivedPackets = 0;
+        uint32_t poolIndex = 0;
+        std::vector<uint8_t> packetReceived;
+        TimePoint startTime{};
     };
 
     struct CompletedFrame {
-        uint64_t frameId;
-        uint32_t width;
-        uint32_t height;
-        uint32_t size;     /* frameTotalBytes */
-        uint16_t format;
-        uint16_t flags;
-        uint32_t poolIndex;
+        FrameMetadata metadata{};
+        uint32_t poolIndex = 0;
     };
 
-    /* Pre-allocated frame data pool. Sized for the worst case (raw BGRA) so the
-     * legacy test path still fits; compressed frames use a small fraction. */
-    uint32_t m_poolSize;
-    uint32_t m_maxFrameBytes;
+    bool IsPacketValidLocked(const FrameMetadata& header, const uint8_t* payload) const;
+    static bool SameFrameMetadata(const FrameMetadata& left,
+                                  const FrameMetadata& right);
+    uint8_t* GetPoolSlot(uint32_t index);
+    int32_t AllocatePoolSlotLocked();
+    void FreePoolSlotLocked(uint32_t index);
+    std::function<void()> LossCallbackLocked() const;
+    void RecordDropLocked();
+
+    const uint32_t m_poolSize;
+    const uint32_t m_maxWidth;
+    const uint32_t m_maxHeight;
+    const uint32_t m_maxFrameBytes;
     std::vector<uint8_t> m_pool;
-    std::vector<bool> m_poolInUse;
+    std::vector<uint8_t> m_poolInUse;
 
-    std::mutex m_assemblyMutex;
-    std::unordered_map<uint64_t, FrameAssembly> m_pendingFrames;
-
-    std::mutex m_completedMutex;
+    mutable std::mutex m_mutex;
     std::condition_variable m_completedCV;
-    std::queue<CompletedFrame> m_completedFrames;
-
-    std::mutex m_releaseMutex;
-    std::unordered_map<uint64_t, uint32_t> m_heldFrames;
-
+    uint64_t m_activeSessionId = 0;
+    uint32_t m_expectedWidth = 0, m_expectedHeight = 0;
+    uint16_t m_expectedFormat = UINT16_MAX;
     uint64_t m_latestCompletedFrameId = 0;
+    std::unordered_map<uint64_t, FrameAssembly> m_pendingFrames;
+    std::queue<CompletedFrame> m_completedFrames;
+    std::unordered_map<FrameKey, uint32_t, FrameKeyHash> m_heldFrames;
 
     PerformanceMonitor* m_perfMon;
+    Clock m_clock;
     std::function<void()> m_onFrameLost;
-
-    uint8_t* GetPoolSlot(uint32_t index);
-    int32_t AllocatePoolSlot();
-    void FreePoolSlot(uint32_t index);
-    void NotifyLost();
 };
 
 } // namespace thunderlink

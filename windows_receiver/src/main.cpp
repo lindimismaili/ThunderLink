@@ -1,163 +1,85 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
 #include <objbase.h>
 #include <shellapi.h>
-#include <mfapi.h>
 #include <string>
-
 #include "App/Application.h"
-#include "App/Config.h"
+#include "App/DesktopSettings.h"
 #include "Utils/Logger.h"
 
-#pragma comment(lib, "shell32.lib")
-#pragma comment(lib, "mfplat.lib")
-
 namespace {
-
-std::string WideToUtf8(const wchar_t* w) {
-    if (!w) return {};
-    int len = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
-    if (len <= 0) return {};
-    std::string s(static_cast<size_t>(len - 1), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, w, -1, s.data(), len, nullptr, nullptr);
-    return s;
+std::string WideToUtf8(const wchar_t* text) {
+    int length = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
+    if (length <= 0) throw std::invalid_argument("Invalid command line encoding");
+    std::string result(size_t(length), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text, -1, result.data(), length, nullptr, nullptr);
+    result.pop_back(); return result;
 }
-
-/* Parse command-line overrides into the global Config. Recognized flags mirror
- * the Mac sender:
- *   --bind <ip> --peer <ip> --video-port <n> --control-port <n> --input-port <n>
- *   --codec h264|hevc --bitrate <Mbps> --fps <n> --res <WxH> --fullscreen --vsync
- *   --console
- */
-void ParseCommandLine(thunderlink::Config& cfg) {
-    int argc = 0;
-    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    if (!argv) return;
-
-    auto needsValue = [&](int i) { return i + 1 < argc; };
-    for (int i = 1; i < argc; ++i) {
-        std::wstring flag = argv[i];
-        if (flag == L"--bind" && needsValue(i))               { cfg.bindIP = WideToUtf8(argv[++i]); }
-        else if (flag == L"--peer" && needsValue(i))          { cfg.peerIP = WideToUtf8(argv[++i]); }
-        else if (flag == L"--video-port" && needsValue(i))    { cfg.videoPort = (uint16_t)_wtoi(argv[++i]); }
-        else if (flag == L"--control-port" && needsValue(i))  { cfg.controlPort = (uint16_t)_wtoi(argv[++i]); }
-        else if (flag == L"--input-port" && needsValue(i))    { cfg.inputPort = (uint16_t)_wtoi(argv[++i]); }
-        else if (flag == L"--codec" && needsValue(i)) {
-            std::wstring v = argv[++i];
-            cfg.codec = (v == L"h264" || v == L"H264") ? TLNK_CODEC_H264 : TLNK_CODEC_HEVC;
-        }
-        else if (flag == L"--bitrate" && needsValue(i))       { cfg.bitrateKbps = (uint32_t)_wtoi(argv[++i]) * 1000u; }
-        else if (flag == L"--fps" && needsValue(i))           { cfg.fps = (uint32_t)_wtoi(argv[++i]); }
-        else if (flag == L"--res" && needsValue(i)) {
-            std::wstring v = argv[++i];
-            size_t x = v.find_first_of(L"xX");
-            if (x != std::wstring::npos) {
-                cfg.width  = (uint32_t)_wtoi(v.substr(0, x).c_str());
-                cfg.height = (uint32_t)_wtoi(v.substr(x + 1).c_str());
-            }
-        }
-        else if (flag == L"--window" && needsValue(i)) {
-            std::wstring v = argv[++i];
-            size_t x = v.find_first_of(L"xX");
-            if (x != std::wstring::npos) {
-                cfg.windowWidth  = (uint32_t)_wtoi(v.substr(0, x).c_str());
-                cfg.windowHeight = (uint32_t)_wtoi(v.substr(x + 1).c_str());
-            }
-        }
-        else if (flag == L"--fullscreen")                     { cfg.startFullscreen = true; }
-        else if (flag == L"--vsync")                          { cfg.vsync = true; }
-        else if (flag == L"--console")                        { cfg.showConsole = true; }
-    }
-
-    LocalFree(argv);
+void LoadConfiguration() {
+    using namespace thunderlink;
+    SavedConfig() = LoadSettings(SettingsPath());
+    int count = 0;
+    LPWSTR* values = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (!values) throw std::invalid_argument("Could not parse command line");
+    std::vector<std::string> args;
+    try { for (int i = 1; i < count; ++i) args.push_back(WideToUtf8(values[i])); }
+    catch (...) { LocalFree(values); throw; }
+    LocalFree(values);
+    GetConfig() = ParseArguments(args, SavedConfig());
 }
-
-} // namespace
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/,
-                   LPSTR /*lpCmdLine*/, int nCmdShow)
-{
-    /* Initialize COM for D3D12 */
-    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    if (FAILED(hr)) {
-        MessageBoxW(nullptr, L"Failed to initialize COM.", L"ThunderLink Error",
-                    MB_OK | MB_ICONERROR);
-        return 1;
+}
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show) {
+    // Session-local mutex: a second launch only reveals the existing window.
+    HANDLE singleton = CreateMutexW(nullptr, FALSE, L"Local\\ThunderLink.Receiver.Instance");
+    if (!singleton) { MessageBoxW(nullptr, L"Could not initialize ThunderLink.", L"ThunderLink", MB_OK | MB_ICONERROR); return 1; }
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        HWND existing = nullptr;
+        for (int retry = 0; retry < 100 && !existing; ++retry) {
+            existing = FindWindowW(L"ThunderLinkReceiverClass", nullptr);
+            if (!existing) Sleep(50);
+        }
+        if (existing) {
+            DWORD process = 0; GetWindowThreadProcessId(existing, &process);
+            AllowSetForegroundWindow(process);
+            PostMessageW(existing, WM_APP + 40, 0, 0);
+        }
+        CloseHandle(singleton); return 0;
     }
-
-    /* Initialize Winsock */
-    WSADATA wsaData;
-    int wsaResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (wsaResult != 0) {
-        MessageBoxW(nullptr, L"Failed to initialize Winsock.", L"ThunderLink Error",
-                    MB_OK | MB_ICONERROR);
-        CoUninitialize();
-        return 1;
-    }
-
-    /* Initialize Media Foundation (hardware video decode) */
-    HRESULT mfHr = MFStartup(MF_VERSION, MFSTARTUP_LITE);
-    if (FAILED(mfHr)) {
-        MessageBoxW(nullptr, L"Failed to initialize Media Foundation.", L"ThunderLink Error",
-                    MB_OK | MB_ICONERROR);
-        WSACleanup();
-        CoUninitialize();
-        return 1;
-    }
-
-    /* Parse command-line overrides first so logging can honor --console. */
-    ParseCommandLine(thunderlink::GetConfig());
-
-    /* Initialize logging. Also append to the repo's cross-device log
-     * (logs/windows.log, path baked in by CMake) so it can be read on the Mac
-     * after a git sync; falls back to the working directory otherwise. The
-     * debug console is opt-in (--console); by default there's no terminal. */
-#ifdef TLNK_LOG_FILE
-    thunderlink::Logger::Init(TLNK_LOG_FILE, thunderlink::GetConfig().showConsole);
-#else
-    thunderlink::Logger::Init("thunderlink_receiver.log", thunderlink::GetConfig().showConsole);
-#endif
-    LOG_INFO("ThunderLink Receiver starting up");
-
+    if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) { CloseHandle(singleton); return 1; }
+    try { LoadConfiguration(); }
+    catch (const std::exception& e) { thunderlink::StartupSettingsError() = e.what(); }
+    WSADATA wsa{};
+    if (WSAStartup(MAKEWORD(2,2), &wsa) != 0) { CoUninitialize(); CloseHandle(singleton); return 1; }
+    try { thunderlink::Logger::InitWide(thunderlink::LogPath().c_str(), thunderlink::GetConfig().showConsole); }
+    catch (...) { thunderlink::Logger::Init(nullptr, thunderlink::GetConfig().showConsole); }
+    int result = 0;
+    bool restart = false;
     {
-        const auto& c = thunderlink::GetConfig();
-        LOG_INFO("Config: bind=%s peer=%s ports(v/i/c)=%u/%u/%u %ux%u@%u codec=%s %ukbps",
-                 c.bindIP.c_str(), c.peerIP.c_str(),
-                 c.videoPort, c.inputPort, c.controlPort,
-                 c.width, c.height, c.fps,
-                 (c.codec == TLNK_CODEC_HEVC ? "HEVC" : "H264"), c.bitrateKbps);
-    }
-
-    int exitCode = 0;
-
-    try {
-        thunderlink::Application app(hInstance);
-
-        if (!app.Initialize(nCmdShow)) {
-            LOG_ERROR("Application initialization failed");
-            exitCode = 1;
-        } else {
-            LOG_INFO("Application initialized successfully");
-            exitCode = app.Run();
+        thunderlink::Application app(instance);
+        try {
+            if (!app.Initialize(show)) {
+                MessageBoxW(nullptr, L"ThunderLink could not initialize its graphics or input system. Check Direct3D 12 support and your graphics driver. Details are in the ThunderLink log.", L"ThunderLink", MB_OK | MB_ICONERROR);
+                result = 1;
+            } else result = app.Run();
         }
 
+        catch (const std::exception& e) {
+            LOG_ERROR("Application failure: %s", e.what());
+            MessageBoxA(nullptr, e.what(), "ThunderLink", MB_OK | MB_ICONERROR); result = 1;
+        }
+        restart = app.RestartRequested();
         app.Shutdown();
-    } catch (const std::exception& e) {
-        LOG_ERROR("Fatal exception: %s", e.what());
-        MessageBoxA(nullptr, e.what(), "ThunderLink Fatal Error",
-                    MB_OK | MB_ICONERROR);
-        exitCode = 1;
     }
-
-    LOG_INFO("ThunderLink Receiver shutting down");
-    thunderlink::Logger::Shutdown();
-
-    MFShutdown();
-    WSACleanup();
-    CoUninitialize();
-
-    return exitCode;
+    thunderlink::Logger::Shutdown(); WSACleanup(); CoUninitialize();
+    CloseHandle(singleton);
+    if (restart) {
+        wchar_t executable[32768]{};
+        GetModuleFileNameW(nullptr, executable, 32768);
+        if (reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", executable, nullptr, nullptr, SW_SHOWNORMAL)) <= 32)
+            MessageBoxW(nullptr, L"Settings were saved. Please reopen ThunderLink.", L"ThunderLink", MB_OK | MB_ICONERROR);
+    }
+    return result;
 }

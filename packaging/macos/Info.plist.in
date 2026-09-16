@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>ThunderLink</string>
+<key>CFBundleDisplayName</key><string>ThunderLink</string>
+<key>CFBundleIdentifier</key><string>com.thunderlink.sender</string>
+<key>CFBundleExecutable</key><string>ThunderLink</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>@VERSION@</string>
+<key>CFBundleVersion</key><string>@VERSION@</string>
+<key>CFBundleIconFile</key><string>ThunderLink</string>
+<key>LSMinimumSystemVersion</key><string>13.0</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSScreenCaptureUsageDescription</key><string>ThunderLink shares your selected display with your Windows PC.</string>
+<key>NSLocalNetworkUsageDescription</key><string>ThunderLink discovers and securely connects to your Windows PC for Screen Share and Cross input.</string>
+<key>NSBonjourServices</key><array><string>_thunderlink-cross._tcp</string></array>
+</dict></plist>

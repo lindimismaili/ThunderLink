@@ -10,10 +10,12 @@
 
 namespace thunderlink {
 
-InputCapture::InputCapture() {
+InputCapture::InputCapture(std::function<bool(HWND)> focusCheck)
+    : m_focusCheck(focusCheck ? std::move(focusCheck) : [](HWND hwnd) { return GetForegroundWindow() == hwnd; }) {
 }
 
 InputCapture::~InputCapture() {
+    ReleaseAll();
     SetCursorConfined(false);
 }
 
@@ -41,6 +43,7 @@ bool InputCapture::Initialize(HWND hwnd, InputCallback callback) {
     }
 
     LOG_INFO("InputCapture: RawInput registered");
+    m_hasFocus = GetForegroundWindow() == m_hwnd;
     return true;
 }
 
@@ -69,6 +72,7 @@ void InputCapture::ProcessRawInput(LPARAM lParam) {
 void InputCapture::SetWindowSize(uint32_t width, uint32_t height) {
     m_windowWidth = width;
     m_windowHeight = height;
+    ReapplyCursorClip();
 }
 
 void InputCapture::SetStreamSize(uint32_t width, uint32_t height) {
@@ -76,14 +80,43 @@ void InputCapture::SetStreamSize(uint32_t width, uint32_t height) {
     m_streamHeight = height;
 }
 
+void InputCapture::SetEnabled(bool enabled) {
+    if (m_enabled == enabled) return;
+    if (!enabled) ReleaseAll();
+    m_enabled = enabled;
+}
+
+void InputCapture::UpdateInputPolicy() {
+    bool captureMouse = false;
+    bool captureKeyboard = false;
+    if (ImGui::GetCurrentContext() != nullptr) {
+        const ImGuiIO& io = ImGui::GetIO();
+        captureMouse = io.WantCaptureMouse;
+        captureKeyboard = io.WantCaptureKeyboard;
+    }
+
+    const bool mouseTookOver = captureMouse && !m_overlayCapturesMouse;
+    const bool keyboardTookOver = captureKeyboard && !m_overlayCapturesKeyboard;
+    if (mouseTookOver || keyboardTookOver) ReleaseAll();
+    m_overlayCapturesMouse = captureMouse;
+    m_overlayCapturesKeyboard = captureKeyboard;
+}
+
+void InputCapture::ReleaseAll() {
+    ReleaseMouseButtons();
+    ReleaseKeys();
+    EmitReset();
+}
+
 void InputCapture::SetCursorConfined(bool confined) {
+    if (!confined) ReleaseAll();
     m_cursorConfined = confined;
     if (confined && m_hasFocus) {
         UpdateCursorClip();
-        ShowCursor(FALSE);
+        SetCursorHidden(true);
     } else {
         ClipCursor(nullptr);
-        ShowCursor(TRUE);
+        SetCursorHidden(false);
     }
 }
 
@@ -97,14 +130,19 @@ void InputCapture::OnFocusGained() {
     m_hasFocus = true;
     if (m_cursorConfined) {
         UpdateCursorClip();
-        ShowCursor(FALSE);
+        SetCursorHidden(true);
     }
 }
 
 void InputCapture::OnFocusLost() {
+    ReleaseAll();
     m_hasFocus = false;
     ClipCursor(nullptr);
-    ShowCursor(TRUE);
+    SetCursorHidden(false);
+}
+
+void InputCapture::ReapplyCursorClip() {
+    if (m_cursorConfined && m_hasFocus) UpdateCursorClip();
 }
 
 void InputCapture::UpdateCursorClip() {
@@ -128,25 +166,41 @@ void InputCapture::UpdateCursorClip() {
 }
 
 void InputCapture::ProcessMouse(const RAWMOUSE& mouse) {
-    if (!InputAllowed(true)) return;
-
     /* Absolute mapping: where the OS cursor sits over the client area. */
     float nx = 0.0f, ny = 0.0f;
     const bool havePos = CurrentClientCursor(nx, ny);
+    if (havePos) {
+        m_lastCursorX = nx;
+        m_lastCursorY = ny;
+    } else {
+        nx = m_lastCursorX;
+        ny = m_lastCursorY;
+    }
+
+    const bool allow = InputAllowed(true);
 
     auto emitButton = [&](int button, int state) {
+        const bool isRelease = state == TLNK_STATE_UP;
+        if (!allow && !(isRelease && m_forwardedState.IsButtonHeld(button))) {
+            return;
+        }
         InputEvent event = {};
         event.type = TLNK_INPUT_MOUSE_BUTTON;
         event.button = button;
         event.state = state;
         event.x = nx;
         event.y = ny;
-        EmitEvent(event);
+        const bool accepted = EmitEvent(event);
+        /* A rejected down never reached the input connection, so it must not
+         * create local held state. Releases clear prior state even if the
+         * connection has already gone away. */
+        if (isRelease) m_forwardedState.SetButtonHeld(button, false);
+        else if (accepted) m_forwardedState.SetButtonHeld(button, true);
     };
 
     /* Movement (relative deltas from RawInput just tell us it moved; the
      * position itself comes from the real cursor over the window). */
-    if (havePos && (mouse.lLastX != 0 || mouse.lLastY != 0)) {
+    if (allow && havePos && (mouse.lLastX != 0 || mouse.lLastY != 0)) {
         InputEvent event = {};
         event.type = TLNK_INPUT_MOUSE_MOVE;
         event.x = nx;
@@ -162,14 +216,14 @@ void InputCapture::ProcessMouse(const RAWMOUSE& mouse) {
     if (mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_UP)   emitButton(TLNK_BUTTON_MIDDLE, TLNK_STATE_UP);
 
     /* Scroll wheel */
-    if (mouse.usButtonFlags & RI_MOUSE_WHEEL) {
+    if (allow && (mouse.usButtonFlags & RI_MOUSE_WHEEL)) {
         InputEvent event = {};
         event.type = TLNK_INPUT_SCROLL;
         event.deltaX = 0;
         event.deltaY = static_cast<int32_t>(static_cast<SHORT>(mouse.usButtonData));
         EmitEvent(event);
     }
-    if (mouse.usButtonFlags & RI_MOUSE_HWHEEL) {
+    if (allow && (mouse.usButtonFlags & RI_MOUSE_HWHEEL)) {
         InputEvent event = {};
         event.type = TLNK_INPUT_SCROLL;
         event.deltaX = static_cast<int32_t>(static_cast<SHORT>(mouse.usButtonData));
@@ -179,15 +233,19 @@ void InputCapture::ProcessMouse(const RAWMOUSE& mouse) {
 }
 
 void InputCapture::ProcessKeyboard(const RAWKEYBOARD& keyboard) {
-    if (!InputAllowed(false)) return;
-
     InputEvent event = {};
     event.type = TLNK_INPUT_KEY;
     event.keyCode = InputMapper::MapKeyCode(keyboard.VKey);
     event.state = (keyboard.Flags & RI_KEY_BREAK) ? TLNK_STATE_UP : TLNK_STATE_DOWN;
     event.modifiers = InputMapper::GetModifierState();
 
-    EmitEvent(event);
+    const bool isRelease = event.state == TLNK_STATE_UP;
+    const bool wasForwarded = m_forwardedState.IsKeyHeld(event.keyCode);
+    if (!InputAllowed(false) && !(isRelease && wasForwarded)) return;
+
+    const bool accepted = EmitEvent(event);
+    if (isRelease) m_forwardedState.SetKeyHeld(event.keyCode, false);
+    else if (accepted) m_forwardedState.SetKeyHeld(event.keyCode, true);
 }
 
 bool InputCapture::InputAllowed(bool isMouse) const {
@@ -195,16 +253,11 @@ bool InputCapture::InputAllowed(bool isMouse) const {
      * window. Checked live via GetForegroundWindow rather than a cached focus
      * flag, because the window's first WM_SETFOCUS fires during creation before
      * InputCapture is wired up, which would otherwise leave the flag stuck. */
-    if (GetForegroundWindow() != m_hwnd) return false;
+    if (!m_enabled || !m_focusCheck(m_hwnd)) return false;
 
-    /* Don't forward input the ImGui overlay is consuming (e.g. clicking the
-     * stats panel or typing in it) — that would also drive the Mac. */
-    if (ImGui::GetCurrentContext() != nullptr) {
-        const ImGuiIO& io = ImGui::GetIO();
-        if (isMouse && io.WantCaptureMouse) return false;
-        if (!isMouse && io.WantCaptureKeyboard) return false;
-    }
-    return true;
+    /* Policy is sampled after the UI is built, so a UI interaction cannot also
+     * drive the Mac through the raw-input path. */
+    return isMouse ? !m_overlayCapturesMouse : !m_overlayCapturesKeyboard;
 }
 
 bool InputCapture::CurrentClientCursor(float& nx, float& ny) const {
@@ -244,10 +297,42 @@ bool InputCapture::CurrentClientCursor(float& nx, float& ny) const {
     return true;
 }
 
-void InputCapture::EmitEvent(const InputEvent& event) {
-    if (m_callback) {
-        m_callback(event);
+bool InputCapture::EmitEvent(const InputEvent& event) {
+    return m_callback && m_callback(event);
+}
+
+bool InputCapture::EmitReset() {
+    InputEvent event = {};
+    event.type = TLNK_INPUT_RESET;
+    return EmitEvent(event);
+}
+
+void InputCapture::ReleaseMouseButtons() {
+    for (int button : m_forwardedState.TakeHeldButtons()) {
+        InputEvent event = {};
+        event.type = TLNK_INPUT_MOUSE_BUTTON;
+        event.button = button;
+        event.state = TLNK_STATE_UP;
+        event.x = m_lastCursorX;
+        event.y = m_lastCursorY;
+        EmitEvent(event);
     }
+}
+
+void InputCapture::ReleaseKeys() {
+    for (uint16_t keyCode : m_forwardedState.TakeHeldKeys()) {
+        InputEvent event = {};
+        event.type = TLNK_INPUT_KEY;
+        event.keyCode = keyCode;
+        event.state = TLNK_STATE_UP;
+        EmitEvent(event);
+    }
+}
+
+void InputCapture::SetCursorHidden(bool hidden) {
+    if (m_cursorHidden == hidden) return;
+    ShowCursor(hidden ? FALSE : TRUE);
+    m_cursorHidden = hidden;
 }
 
 } // namespace thunderlink

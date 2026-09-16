@@ -1,120 +1,200 @@
 import Foundation
 
-/// Network + stream configuration matching common/protocol.h.
-///
-/// Endpoint/codec fields are `static var` so they can be overridden from the
-/// command line at startup (see `applyCommandLine`). They default to the
-/// link-local addresses used for a direct USB-C→Ethernet link, so the common
-/// "two adapters + a cable" setup needs no flags at all.
+/// Network and stream limits mirrored in `common/protocol.h`.
 enum NetworkConfig {
-    // MARK: Overridable endpoints (defaults match the direct link-local link)
-    static var macIP = "169.254.1.1"   // our bind address
-    static var winIP = "169.254.1.2"   // peer (receiver) address
-
-    // When true (default), at startup the app assigns `macIP` to the direct-link
-    // adapter if it isn't already present (see LinkSetup). Disable with --no-auto-ip.
+    static var macIP = "169.254.1.1"
+    static var winIP = "169.254.1.2"
     static var autoAssignIP = true
     static let linkSubnet = "255.255.255.0"
-
-    // Which display to capture (index into DisplayManager.displays; 0 = main).
-    // Use a non-zero index to capture a BetterDisplay virtual display. When
-    // capturing a non-main display the app does NOT change the main display's
-    // mode, and input is still injected to the main display (mirror setup).
     static var captureDisplayIndex = 0
 
-    static var videoPort: UInt16 = 50001   // UDP
-    static var inputPort: UInt16 = 50002   // TCP
-    static var controlPort: UInt16 = 50003 // TCP
+    static var videoPort: UInt16 = 50001
+    static var inputPort: UInt16 = 50002
+    static var controlPort: UInt16 = 50003
+    static let crossPort: UInt16 = 50004
+    static let crossService = "_thunderlink-cross._tcp"
+    static let crossLeaseMs = 1_000
+    static let crossPingMs = 250
+    static let crossQueueLimit = 256
+    static let crossMaxDisplays = 32
 
-    // MARK: Overridable stream defaults
-    // The receiver normally drives res/fps/codec/bitrate via the CONFIGURE
-    // handshake; these are fallback defaults / CLI overrides.
     static var defaultCodec: TlnkCodecSwift = .hevc
-    static var defaultBitrateMbps: Int = 25
-    static var defaultWidth: Int = 2560
-    static var defaultHeight: Int = 1440
-    static var defaultFPS: Int = 60
+    static var defaultBitrateMbps = 25
+    static var defaultWidth = 2560
+    static var defaultHeight = 1440
+    static var defaultFPS = 60
 
-    // MARK: Fixed protocol constants
-    // Standard 1500-byte Ethernet MTU (jumbo frames are usually off on
-    // USB-C->Ethernet adapters). Must match TLNK_MTU / TLNK_MAX_PAYLOAD in
-    // common/protocol.h. Oversized UDP datagrams get dropped by a non-jumbo
-    // link → black screen while TCP control/input still work.
     static let mtu = 1500
-    // Must match TLNK_HEADER_SIZE in common/protocol.h and sizeof(TlnkFrameHeader).
-    static let headerSize = 40
+    static let headerSize = 48
     static let maxPayload = 1400
+    static let magic: UInt32 = 0x544C4E4B
+    static let protocolVersion: UInt32 = 4
 
-    static let magic: UInt32 = 0x544C4E4B  // "TLNK"
-    static let protocolVersion: UInt32 = 2
+    static let recvBufferSize = 4 * 1024 * 1024
+    static let sendBufferSize = 4 * 1024 * 1024
 
-    static let recvBufferSize = 4 * 1024 * 1024  // 4 MB
-    static let sendBufferSize = 4 * 1024 * 1024  // 4 MB
+    static let maxWidth = 3840
+    static let maxHeight = 2160
+    static let minFPS = 1
+    static let maxFPS = 240
+    static let minBitrateKbps = 1_000
+    static let maxBitrateKbps = 200_000
 
     static let frameTimeoutMs = 50
-    static let reconnectIntervalMs = 1000
-    static let pingIntervalMs = 1000
+    static let connectTimeoutMs = 2_000
+    static let writeTimeoutMs = 2_000
+    static let handshakeTimeoutMs = 5_000
+    static let peerSilenceTimeoutMs = 5_000
+    static let reconnectIntervalMs = 1_000
+    static let pingIntervalMs = 1_000
 
-    // Video payload format IDs (matching TlnkPixelFormat in protocol.h)
     static let formatBGRA32: UInt16 = 0
     static let formatH264: UInt16 = 1
     static let formatHEVC: UInt16 = 2
 
-    /// Wire format byte for a given codec.
     static func wireFormat(for codec: TlnkCodecSwift) -> UInt16 {
-        switch codec {
-        case .h264: return formatH264
-        case .hevc: return formatHEVC
-        }
+        codec == .h264 ? formatH264 : formatHEVC
     }
 
-    /// Parse command-line overrides. Recognized flags:
-    ///   --peer <ip>          receiver IP (default 169.254.1.2)
-    ///   --bind <ip>          our local IP (default 169.254.1.1; "0.0.0.0" = any)
-    ///   --no-auto-ip         don't auto-assign --bind IP to the adapter at startup
-    ///   --video-port <n>     --control-port <n>     --input-port <n>
-    ///   --codec h264|hevc    --bitrate <Mbps>
-    ///   --fps <n>            --res <WxH>
-    static func applyCommandLine(_ args: [String]) {
-        var i = 1
-        func nextValue() -> String? {
-            guard i + 1 < args.count else { return nil }
-            i += 1
-            return args[i]
-        }
-        while i < args.count {
-            let flag = args[i]
-            switch flag {
-            case "--peer":         if let v = nextValue() { winIP = v }
-            case "--bind":         if let v = nextValue() { macIP = v }
-            case "--no-auto-ip":   autoAssignIP = false
-            case "--display":      if let v = nextValue(), let d = Int(v) { captureDisplayIndex = d }
-            case "--video-port":   if let v = nextValue(), let p = UInt16(v) { videoPort = p }
-            case "--control-port": if let v = nextValue(), let p = UInt16(v) { controlPort = p }
-            case "--input-port":   if let v = nextValue(), let p = UInt16(v) { inputPort = p }
-            case "--codec":
-                if let v = nextValue() {
-                    defaultCodec = (v.lowercased() == "h264") ? .h264 : .hevc
-                }
-            case "--bitrate":      if let v = nextValue(), let b = Int(v) { defaultBitrateMbps = b }
-            case "--fps":          if let v = nextValue(), let f = Int(v) { defaultFPS = f }
-            case "--res":
-                if let v = nextValue() {
-                    let parts = v.lowercased().split(separator: "x")
-                    if parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]) {
-                        defaultWidth = w; defaultHeight = h
-                    }
-                }
-            default:
-                break
+    /// Applies validated values atomically. Invalid input is reported before
+    /// networking or display changes begin.
+    static func applyCommandLine(_ args: [String]) throws {
+        let parsed = try RuntimeConfiguration.parse(arguments: args)
+        macIP = parsed.macIP
+        winIP = parsed.winIP
+        autoAssignIP = parsed.autoAssignIP
+        captureDisplayIndex = parsed.captureDisplayIndex
+        videoPort = parsed.videoPort
+        inputPort = parsed.inputPort
+        controlPort = parsed.controlPort
+        defaultCodec = parsed.codec
+        defaultBitrateMbps = parsed.bitrateKbps / 1_000
+        defaultWidth = parsed.width
+        defaultHeight = parsed.height
+        defaultFPS = parsed.fps
+    }
+}
+
+enum TlnkCodecSwift: Int, Codable, Equatable, CustomStringConvertible {
+    case h264 = 0
+    case hevc = 1
+
+    var description: String { self == .hevc ? "HEVC" : "H.264" }
+}
+
+struct RuntimeConfiguration: Equatable {
+    var macIP = "169.254.1.1"
+    var winIP = "169.254.1.2"
+    var autoAssignIP = true
+    var captureDisplayIndex = 0
+    var videoPort: UInt16 = 50001
+    var inputPort: UInt16 = 50002
+    var controlPort: UInt16 = 50003
+    var codec: TlnkCodecSwift = .hevc
+    var bitrateKbps = 25_000
+    var width = 2560
+    var height = 1440
+    var fps = 60
+
+    static func parse(arguments: [String]) throws -> RuntimeConfiguration {
+        var result = RuntimeConfiguration()
+        var index = 1
+
+        func value(after flag: String) throws -> String {
+            guard index + 1 < arguments.count else {
+                throw RuntimeConfigurationError.missingValue(flag)
             }
-            i += 1
+            index += 1
+            return arguments[index]
+        }
+
+        while index < arguments.count {
+            let flag = arguments[index]
+            switch flag {
+            case "--peer":
+                let value = try value(after: flag)
+                guard isIPv4(value), value != "0.0.0.0", value != "255.255.255.255" else {
+                    throw RuntimeConfigurationError.invalidValue(flag, value)
+                }
+                result.winIP = value
+            case "--bind":
+                let value = try value(after: flag)
+                guard isIPv4(value) else { throw RuntimeConfigurationError.invalidValue(flag, value) }
+                result.macIP = value
+            case "--no-auto-ip":
+                result.autoAssignIP = false
+            case "--display":
+                let value = try value(after: flag)
+                guard let parsed = Int(value), parsed >= 0 else {
+                    throw RuntimeConfigurationError.invalidValue(flag, value)
+                }
+                result.captureDisplayIndex = parsed
+            case "--video-port", "--input-port", "--control-port":
+                let value = try value(after: flag)
+                guard let parsed = UInt16(value), parsed > 0 else {
+                    throw RuntimeConfigurationError.invalidValue(flag, value)
+                }
+                if flag == "--video-port" { result.videoPort = parsed }
+                if flag == "--input-port" { result.inputPort = parsed }
+                if flag == "--control-port" { result.controlPort = parsed }
+            case "--codec":
+                let value = try value(after: flag).lowercased()
+                guard let codec = ["h264": TlnkCodecSwift.h264, "hevc": .hevc][value] else {
+                    throw RuntimeConfigurationError.invalidValue(flag, value)
+                }
+                result.codec = codec
+            case "--bitrate":
+                let value = try value(after: flag)
+                guard let mbps = Int(value),
+                      mbps >= NetworkConfig.minBitrateKbps / 1_000,
+                      mbps <= NetworkConfig.maxBitrateKbps / 1_000 else {
+                    throw RuntimeConfigurationError.invalidValue(flag, value)
+                }
+                result.bitrateKbps = mbps * 1_000
+            case "--fps":
+                let value = try value(after: flag)
+                guard let fps = Int(value), (NetworkConfig.minFPS...NetworkConfig.maxFPS).contains(fps) else {
+                    throw RuntimeConfigurationError.invalidValue(flag, value)
+                }
+                result.fps = fps
+            case "--res":
+                let value = try value(after: flag)
+                let pieces = value.lowercased().split(separator: "x", omittingEmptySubsequences: false)
+                guard pieces.count == 2,
+                      let width = Int(pieces[0]), let height = Int(pieces[1]),
+                      StreamConfiguration.isValidRequestedResolution(width: width, height: height) else {
+                    throw RuntimeConfigurationError.invalidValue(flag, value)
+                }
+                result.width = width
+                result.height = height
+            default:
+                throw RuntimeConfigurationError.unknownFlag(flag)
+            }
+            index += 1
+        }
+        return result
+    }
+
+    private static func isIPv4(_ value: String) -> Bool {
+        let parts = value.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return false }
+        return parts.allSatisfy { part in
+            guard !part.isEmpty, part.allSatisfy(\.isNumber), let number = Int(part) else { return false }
+            return (0...255).contains(number) && (part == "0" || !part.hasPrefix("0"))
         }
     }
 }
 
-/// Swift mirror of TlnkCodec in protocol.h.
-enum TlnkCodecSwift {
-    case h264
-    case hevc
+enum RuntimeConfigurationError: Error, LocalizedError, Equatable {
+    case missingValue(String)
+    case invalidValue(String, String)
+    case unknownFlag(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingValue(let flag): return "Missing value for \(flag)"
+        case .invalidValue(let flag, let value): return "Invalid value '\(value)' for \(flag)"
+        case .unknownFlag(let flag): return "Unknown option \(flag)"
+        }
+    }
 }

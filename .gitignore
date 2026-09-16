@@ -41,3 +41,7 @@ Icon?
 # ── Windows ──
 Thumbs.db
 Desktop.ini
+
+# Portable desktop build artifacts
+dist/
+build-portable/

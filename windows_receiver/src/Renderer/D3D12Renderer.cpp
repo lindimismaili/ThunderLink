@@ -5,7 +5,7 @@
 
 #include <d3dcompiler.h>
 #include <vector>
-#include <fstream>
+#include "EmbeddedShaders.h"
 
 #include "imgui.h"
 #include "imgui_impl_win32.h"
@@ -44,7 +44,8 @@ bool D3D12Renderer::Initialize(HWND hwnd, uint32_t width, uint32_t height) {
     if (!CreateRootSignatureAndPSO()) return false;
 
     if (!InitImGui(hwnd)) {
-        LOG_WARN("D3D12Renderer: ImGui init failed; continuing without overlay");
+        LOG_ERROR("D3D12Renderer: desktop interface initialization failed");
+        return false;
     }
 
     m_initialized = true;
@@ -80,8 +81,8 @@ void ApplyModernImGuiStyle() {
     const ImVec4 accentActive = ImVec4(0.11f, 0.51f, 0.74f, 1.00f);
 
     ImVec4* c = s.Colors;
-    c[ImGuiCol_WindowBg]             = ImVec4(0.09f, 0.10f, 0.12f, 0.94f);
-    c[ImGuiCol_ChildBg]              = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    c[ImGuiCol_WindowBg]             = ImVec4(0.09f, 0.105f, 0.14f, 1.0f);
+    c[ImGuiCol_ChildBg]              = ImVec4(0.09f, 0.105f, 0.14f, 1.0f);
     c[ImGuiCol_PopupBg]              = ImVec4(0.10f, 0.11f, 0.13f, 0.98f);
     c[ImGuiCol_Border]               = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
     c[ImGuiCol_FrameBg]              = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
@@ -124,15 +125,21 @@ bool D3D12Renderer::InitImGui(HWND hwnd) {
     ImGui::StyleColorsDark();
     ApplyModernImGuiStyle();
     ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.LogFilename = nullptr;
     io.IniFilename = nullptr; /* don't write imgui.ini */
 
     /* Scale the whole UI (sizes + font) for high-DPI displays so the toolbar
      * and panels stay crisp and legible. */
-    float dpi = ImGui_ImplWin32_GetDpiScaleForHwnd(hwnd);
-    if (dpi > 1.0f) {
-        ImGui::GetStyle().ScaleAllSizes(dpi);
-        io.FontGlobalScale = dpi;
-    }
+    m_uiWindow = hwnd;
+    m_uiScale = ImGui_ImplWin32_GetDpiScaleForHwnd(hwnd);
+    m_fontScale = m_uiScale;
+    char windowsDirectory[MAX_PATH]{};
+    GetWindowsDirectoryA(windowsDirectory, MAX_PATH);
+    const std::string font = std::string(windowsDirectory) + "\\Fonts\\segoeui.ttf";
+    if (GetFileAttributesA(font.c_str()) != INVALID_FILE_ATTRIBUTES) io.Fonts->AddFontFromFileTTF(font.c_str(), 17.0f * m_fontScale);
+    if (io.Fonts->Fonts.empty()) { ImFontConfig fallback{}; fallback.SizePixels = 17.0f * m_fontScale; io.Fonts->AddFontDefault(&fallback); }
+    ImGui::GetStyle().ScaleAllSizes(m_uiScale);
 
     if (!ImGui_ImplWin32_Init(hwnd)) return false;
     if (!ImGui_ImplDX12_Init(m_device.Get(), SwapChain::BUFFER_COUNT, SwapChain::FORMAT,
@@ -150,7 +157,14 @@ bool D3D12Renderer::InitImGui(HWND hwnd) {
 void D3D12Renderer::RenderImGui(ID3D12GraphicsCommandList* cmdList) {
     if (!m_imguiInitialized) return;
 
+    const float dpi = ImGui_ImplWin32_GetDpiScaleForHwnd(m_uiWindow);
+    if (dpi != m_uiScale && dpi > 0) {
+        ImGui::GetStyle().ScaleAllSizes(dpi / m_uiScale);
+        ImGui::GetIO().FontGlobalScale = dpi / m_fontScale;
+        m_uiScale = dpi;
+    }
     ImGui_ImplDX12_NewFrame();
+
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
@@ -303,73 +317,23 @@ bool D3D12Renderer::CreateCommandInfrastructure() {
 }
 
 bool D3D12Renderer::LoadShaders(ID3DBlob** vsBlob, ID3DBlob** psBlob) {
-    /* Try loading pre-compiled .cso files first */
-    auto loadCSO = [](const wchar_t* path, ID3DBlob** blob) -> bool {
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-        if (!file.is_open()) return false;
-
-        size_t size = static_cast<size_t>(file.tellg());
-        file.seekg(0);
-
-        HRESULT hr = D3DCreateBlob(size, blob);
-        if (FAILED(hr)) return false;
-
-        file.read(static_cast<char*>((*blob)->GetBufferPointer()), size);
-        return true;
-    };
-
-    /* Try pre-compiled shaders */
-    bool vsLoaded = loadCSO(L"shaders/vertex.cso", vsBlob);
-    bool psLoaded = loadCSO(L"shaders/pixel.cso", psBlob);
-
-    if (vsLoaded && psLoaded) {
-        LOG_INFO("D3D12Renderer: loaded pre-compiled shaders");
-        return true;
-    }
-
-    /* Fallback: compile from source at runtime */
-    LOG_INFO("D3D12Renderer: compiling shaders from source");
-
-    UINT compileFlags = 0;
-#ifdef _DEBUG
-    compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
-#else
-    compileFlags = D3DCOMPILE_OPTIMIZATION_LEVEL3;
-#endif
-
-    ComPtr<ID3DBlob> errors;
-
-    HRESULT hr = D3DCompileFromFile(L"shaders/vertex.hlsl", nullptr, nullptr,
-                                     "main", "vs_5_1", compileFlags, 0, vsBlob, &errors);
+    *vsBlob = nullptr; *psBlob = nullptr;
+    ComPtr<ID3DBlob> vertex, pixel, errors;
+    const UINT flags = D3DCOMPILE_OPTIMIZATION_LEVEL3;
+    HRESULT hr = D3DCompile(shaders::vertex, sizeof(shaders::vertex) - 1, "vertex.hlsl", nullptr, nullptr,
+                           "main", "vs_5_1", flags, 0, &vertex, &errors);
     if (FAILED(hr)) {
-        if (errors) {
-            LOG_ERROR("Vertex shader compile error: %s",
-                      (const char*)errors->GetBufferPointer());
-        }
-        /* Try relative to executable */
-        hr = D3DCompileFromFile(L"../shaders/vertex.hlsl", nullptr, nullptr,
-                                "main", "vs_5_1", compileFlags, 0, vsBlob, &errors);
-        if (FAILED(hr)) {
-            LOG_ERROR("D3D12Renderer: failed to compile vertex shader (hr=0x%08X)", hr);
-            return false;
-        }
+        LOG_ERROR("Embedded vertex shader failed: %s", errors ? static_cast<const char*>(errors->GetBufferPointer()) : "unknown error");
+        return false;
     }
-
-    hr = D3DCompileFromFile(L"shaders/pixel.hlsl", nullptr, nullptr,
-                             "main", "ps_5_1", compileFlags, 0, psBlob, &errors);
+    errors.Reset();
+    hr = D3DCompile(shaders::pixel, sizeof(shaders::pixel) - 1, "pixel.hlsl", nullptr, nullptr,
+                    "main", "ps_5_1", flags, 0, &pixel, &errors);
     if (FAILED(hr)) {
-        if (errors) {
-            LOG_ERROR("Pixel shader compile error: %s",
-                      (const char*)errors->GetBufferPointer());
-        }
-        hr = D3DCompileFromFile(L"../shaders/pixel.hlsl", nullptr, nullptr,
-                                "main", "ps_5_1", compileFlags, 0, psBlob, &errors);
-        if (FAILED(hr)) {
-            LOG_ERROR("D3D12Renderer: failed to compile pixel shader (hr=0x%08X)", hr);
-            return false;
-        }
+        LOG_ERROR("Embedded pixel shader failed: %s", errors ? static_cast<const char*>(errors->GetBufferPointer()) : "unknown error");
+        return false;
     }
-
+    *vsBlob = vertex.Detach(); *psBlob = pixel.Detach();
     return true;
 }
 
@@ -491,10 +455,12 @@ D3D12_VIEWPORT D3D12Renderer::ComputeViewport() const {
     return vp;
 }
 
-void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
+bool D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
                                 uint32_t width, uint32_t height,
                                 uint32_t yStride, uint32_t uvStride) {
-    if (!m_initialized) return;
+    if (!m_initialized || !yPlane || !uvPlane || width == 0 || height == 0) {
+        return false;
+    }
 
     /* Wait for frame latency and fence */
     m_swapChain.WaitForFrameLatency();
@@ -502,26 +468,43 @@ void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
     m_frameIndex = m_swapChain.GetCurrentBackBufferIndex();
     WaitForFence(m_fenceValues[m_frameIndex]);
 
+    /* Recreate the video textures before resetting or recording the command
+     * list. All earlier users are complete, so no barrier can reference a
+     * released resource. TextureManager retains the old pair until submission
+     * so a later setup failure can roll back to the last valid image. */
+    const bool textureResize = width != m_textureManager.GetTextureWidth() ||
+                               height != m_textureManager.GetTextureHeight();
+    if (textureResize) {
+        WaitForGPU();
+        if (!m_textureManager.EnsureTextureSize(width, height)) {
+            LOG_ERROR("D3D12Renderer: texture resize to %ux%u failed", width, height);
+            return false;
+        }
+    }
+
     /* Reset command allocator and command list */
     HRESULT hr = m_commandAllocators[m_frameIndex]->Reset();
     if (FAILED(hr)) {
         LOG_ERROR("D3D12Renderer: command allocator reset failed (hr=0x%08X)", hr);
-        return;
+        m_textureManager.RollbackTextureResize();
+        return false;
     }
 
     hr = m_commandList->Reset(m_commandAllocators[m_frameIndex].Get(), m_pipelineState.Get());
     if (FAILED(hr)) {
         LOG_ERROR("D3D12Renderer: command list reset failed (hr=0x%08X)", hr);
-        return;
+        m_textureManager.RollbackTextureResize();
+        return false;
     }
 
-    /* Upload texture: transition to copy dest, upload, transition to SRV */
-    m_textureManager.TransitionToCopyDest(m_commandList.Get());
-    m_textureManager.UploadNV12(m_commandList.Get(), yPlane, uvPlane,
-                                width, height, yStride, uvStride);
-    m_textureManager.TransitionToShaderResource(m_commandList.Get());
-
-    m_hasFrame = true;
+    if (!m_textureManager.UploadNV12(m_commandList.Get(), yPlane, uvPlane,
+                                     width, height, yStride, uvStride,
+                                     m_frameIndex)) {
+        LOG_ERROR("D3D12Renderer: NV12 upload preparation failed");
+        m_commandList->Close();
+        m_textureManager.RollbackTextureResize();
+        return false;
+    }
 
     /* Transition back buffer to render target */
     D3D12_RESOURCE_BARRIER rtBarrier = {};
@@ -576,17 +559,21 @@ void D3D12Renderer::RenderFrame(const uint8_t* yPlane, const uint8_t* uvPlane,
     hr = m_commandList->Close();
     if (FAILED(hr)) {
         LOG_ERROR("D3D12Renderer: command list close failed (hr=0x%08X)", hr);
-        return;
+        m_textureManager.RollbackTextureResize();
+        return false;
     }
 
     ID3D12CommandList* lists[] = {m_commandList.Get()};
     m_commandQueue->ExecuteCommandLists(1, lists);
+    m_textureManager.CommitTextureResize();
+    m_hasFrame = true;
 
     /* Present */
     m_swapChain.Present();
 
     /* Signal fence for this frame */
     MoveToNextFrame();
+    return true;
 }
 
 void D3D12Renderer::RenderLastFrame() {
