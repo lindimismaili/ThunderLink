@@ -1,27 +1,39 @@
 # Example invocations
 
-## Active Mode
+## Active mode
 
-> Explicitly invoke the `cross-platform-testing` skill in Active Mode to add the requested reconnect
-> behavior, run all tests available on this Windows machine, and hand the Mac
-> agent the exact Swift and physical-link checks it must perform.
+> Explicitly invoke `cross-platform-testing` in Active mode to add the requested
+> reconnect behavior on Windows, run available tests, and hand the Mac
+> participant exact Swift and physical-link verification requests.
 
-Expected behavior: detect native Windows, validate and fast-forward the current
-upstream, join or create the session, perform the scoped work, report evidence
-without claiming Mac verification, push one turn handoff, and wait.
+Expected behavior: announce the goal, detected OS, Active mode, and Git gate;
+require an exactly synchronized clean branch; start the idle coder and monitor;
+activate only the coder; review its work; write and push the mailbox handoff;
+then activate the monitor and enter Waiting mode.
 
-## Waiting Mode
+## Waiting mode with no mailbox
 
-> Explicitly invoke the `cross-platform-testing` skill in Waiting Mode. Claim this Mac participant,
-> poll the current upstream, and execute only a new request addressed to Mac.
+> Explicitly invoke `cross-platform-testing` in Waiting mode on this Mac. Wait
+> for the Windows participant's next committed handoff.
 
-Expected behavior: detect native macOS, create or join one open session, push
-the claim when needed, poll in bounded cycles, and remain read-only until the
-turn and an unprocessed request target Mac.
+Expected behavior: announce state and complete the strict Git gate; start the
+idle coder and the read-only monitor; do not create `MEMORY.md`; poll for up to
+one hour. After `UPDATE_AVAILABLE`, fast-forward or stop on failure, require the
+mailbox to have arrived in the commit, then activate the coder only for a valid
+Mac request.
 
-## Ambiguous request
+## Ambiguous mode
 
-> Explicitly invoke the `cross-platform-testing` skill for the project.
+> Explicitly invoke `cross-platform-testing` for the project.
 
-Expected behavior: ask whether to begin in Active Mode or Waiting Mode before
-creating a session or performing Git mutations.
+Expected behavior: announce the goal and native OS, then ask the user to choose
+Active or Waiting before spawning subagents, writing files, or polling.
+
+## Unsafe initial checkout
+
+> Invoke `cross-platform-testing` in Waiting mode, but this branch has one local
+> commit that has not been pushed.
+
+Expected behavior: report that the branch is ahead, enter Stopped mode, and ask
+the user to reconcile Git first. Do not spawn agents, push, pull, or create the
+mailbox.

@@ -1,0 +1,9 @@
+name = "test-agent"
+description = "Smoke-test that the cross-platform-testing skill can invoke and receive a response from a subagent."
+developer_instructions = """
+When you are invoked, reply back to the agent that invoked you and say you are a test subagent that has successfully run.
+"""
+nickname_candidates = ["db84e959120e41bc9127d95bfa50ed19", "Test Agent", "Skill Smoke Test"]
+model = "gpt-5.6-luna"
+model_reasoning_effort = "low"
+sandbox_mode = "read-only"
