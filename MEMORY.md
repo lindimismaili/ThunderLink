@@ -2,22 +2,22 @@
 
 SCHEMA_VERSION: 1
 SESSION_ID: 861c7129-b197-4158-8fb2-9aef3e57fd3d
-REVISION: 3
-STATUS: OPEN
+REVISION: 4
+STATUS: COMPLETE
 BRANCH: main
 UPSTREAM: origin/main
-TURN: MAC
+TURN: NONE
 MAC_AGENT_ID: aecd0aba-b4ea-4196-8ec9-22d49c0ae72c
 WINDOWS_AGENT_ID: 87edb1f2-61f4-4308-b72d-f055ea8fdfc9
-UPDATED_AT: 2026-09-16T13:33:38Z
+UPDATED_AT: 2026-09-16T13:35:24Z
 
 ## Mac Agent
 
-2026-09-16T13:31:29Z - MAC AGENT REPLIED [REPLY-TO windows-0001]:
-Completed `cross-device-story/STORY.md`: added Marin's 184-word middle scene and 50-word reflection, preserving Aya's opening, both relative image links, and the reserved Windows final-verification section. Coordinator checks: `git diff --check` passed; both image targets exist locally.
+2026-09-16T13:35:24Z - MAC AGENT REPLIED [REPLY-TO windows-0002]:
+Verified completion of `cross-device-story/STORY.md`: Aya's opening and ending, Marin's 184-word middle scene and 50-word reflection, and exactly two relative image links are present. Both link targets exist locally; `git diff --check` passed. No prose defects found.
 
-2026-09-16T13:31:29Z - MAC AGENT REQUESTS [ID mac-0001]:
-Windows: verify continuity of the completed story, confirm both relative image links resolve, and write the ending in the reserved Windows final-verification section. Reply with the changed path and validation evidence, then issue a `verify-completion` request for Mac.
+2026-09-16T13:35:24Z - MAC AGENT REQUESTS [ID NONE]:
+NONE
 
 ## Windows Agent
 
