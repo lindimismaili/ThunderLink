@@ -1,81 +1,104 @@
 {
-    // ThunderLink dev tasks.
-    //   * "Windows: Dev (Build & Run Receiver)"  — run on the Windows PC
-    //   * "Mac: Dev (Build & Run Sender)"         — run on the Mac
-    // Run with: Terminal > Run Task...  (or Ctrl/Cmd+Shift+B for the default build).
-    // Defaults target the direct USB-C->Ethernet link (169.254.1.1 Mac / 169.254.1.2 PC),
-    // so no arguments are needed. Add e.g. ["--peer","169.254.1.2"] to the args to override.
+    // ThunderLink dev tasks. Both are cross-platform: each one runs the driver
+    // script for the machine you are on and builds/runs that machine's half of
+    // the system -- the receiver on Windows, the sender on macOS.
+    //
+    //   Build : checks the toolchain (CMake / MSVC / Git on Windows, Swift on
+    //           macOS), offers to install anything missing, configures on first
+    //           run, then compiles.
+    //   Run   : rebuilds only when sources are newer than the built binary,
+    //           then launches the app.
+    //
+    // Terminal > Run Task..., or Ctrl/Cmd+Shift+B for Build.
+    // Defaults target the direct link (169.254.1.1 Mac / 169.254.1.2 PC), so no
+    // arguments are needed; see docs/SETUP.md for runtime overrides.
     "version": "2.0.0",
     "tasks": [
-        // ---------------- Windows (receiver) ----------------
         {
-            "label": "Windows: Configure (CMake)",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["-B", "build", "-S", "windows_receiver"],
+            "label": "Build",
+            "detail": "Check/install dependencies, then build this machine's ThunderLink app (Windows receiver or Mac sender).",
+            "type": "process",
+            "command": "/bin/sh",
+            "args": ["${workspaceFolder}/scripts/dev.sh", "build"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": [
+                    "-NoProfile",
+                    "-ExecutionPolicy", "Bypass",
+                    "-File", "${workspaceFolder}\\scripts\\dev.ps1",
+                    "-Task", "build"
+                ]
+            },
+            "osx": {
+                "command": "/bin/sh",
+                "args": ["${workspaceFolder}/scripts/dev.sh", "build"]
+            },
             "options": { "cwd": "${workspaceFolder}" },
-            "problemMatcher": [],
-            "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": [
+                "$msCompile",
+                {
+                    "owner": "swift",
+                    "source": "swiftc",
+                    "fileLocation": "absolute",
+                    "pattern": {
+                        "regexp": "^(.*\\.swift):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                }
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            }
         },
         {
-            // Kill any running instance so the linker can overwrite the .exe.
-            // Succeeds whether or not it was running (PowerShell default shell).
-            "label": "Windows: Stop Receiver",
-            "type": "shell",
-            "command": "Stop-Process -Name ThunderLinkReceiver -Force -ErrorAction SilentlyContinue; exit 0",
+            "label": "Run",
+            "detail": "Rebuild only if the build is out of date, then launch this machine's ThunderLink app.",
+            "type": "process",
+            "command": "/bin/sh",
+            "args": ["${workspaceFolder}/scripts/dev.sh", "run"],
+            "windows": {
+                "command": "powershell.exe",
+                "args": [
+                    "-NoProfile",
+                    "-ExecutionPolicy", "Bypass",
+                    "-File", "${workspaceFolder}\\scripts\\dev.ps1",
+                    "-Task", "run"
+                ]
+            },
+            "osx": {
+                "command": "/bin/sh",
+                "args": ["${workspaceFolder}/scripts/dev.sh", "run"]
+            },
             "options": { "cwd": "${workspaceFolder}" },
-            "problemMatcher": [],
-            "presentation": { "reveal": "silent", "panel": "shared" }
-        },
-        {
-            "label": "Windows: Build (CMake Debug)",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "build", "--config", "Debug"],
-            "options": { "cwd": "${workspaceFolder}" },
-            "dependsOn": ["Windows: Configure (CMake)", "Windows: Stop Receiver"],
-            "dependsOrder": "sequence",
-            "problemMatcher": ["$msCompile"],
-            "group": "build",
-            "presentation": { "reveal": "always", "panel": "shared" }
-        },
-        {
-            // Primary "Windows dev mode" task: configure -> build -> run the receiver.
-            // Runs from build/ so the renderer finds build/shaders/*.cso.
-            "label": "Windows: Dev (Build & Run Receiver)",
-            "type": "shell",
-            "command": "${workspaceFolder}/build/Debug/ThunderLinkReceiver.exe",
-            "args": [],
-            "options": { "cwd": "${workspaceFolder}/build" },
-            "dependsOn": ["Windows: Build (CMake Debug)"],
-            "dependsOrder": "sequence",
-            "problemMatcher": [],
-            "group": "test",
-            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
-        },
-
-        // ---------------- Mac (sender) ----------------
-        {
-            "label": "Mac: Build (SwiftPM Debug)",
-            "type": "shell",
-            "command": "swift",
-            "args": ["build"],
-            "options": { "cwd": "${workspaceFolder}/mac_sender" },
-            "problemMatcher": [],
-            "group": "build",
-            "presentation": { "reveal": "always", "panel": "shared" }
-        },
-        {
-            // Primary "Mac dev mode" task: swift run builds (debug) and launches the sender.
-            // Requires Screen Recording + Accessibility permissions for the produced binary.
-            "label": "Mac: Dev (Build & Run Sender)",
-            "type": "shell",
-            "command": "swift",
-            "args": ["run", "ThunderLinkSender"],
-            "options": { "cwd": "${workspaceFolder}/mac_sender" },
-            "problemMatcher": [],
-            "group": "test",
-            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": [
+                "$msCompile",
+                {
+                    "owner": "swift",
+                    "source": "swiftc",
+                    "fileLocation": "absolute",
+                    "pattern": {
+                        "regexp": "^(.*\\.swift):(\\d+):(\\d+):\\s+(error|warning):\\s+(.*)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4,
+                        "message": 5
+                    }
+                }
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
         }
     ]
 }

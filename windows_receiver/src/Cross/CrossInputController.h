@@ -120,7 +120,7 @@ private:
     HWND m_inputWindow = nullptr;
     HHOOK m_mouseHook = nullptr;
     HHOOK m_keyboardHook = nullptr;
-    std::mutex m_mutex;
+    mutable std::mutex m_mutex;
     cross::Layout m_layout;
     std::deque<Queued> m_queue;
     std::atomic<State> m_state{State::Local};

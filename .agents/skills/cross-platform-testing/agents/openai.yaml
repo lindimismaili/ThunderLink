@@ -1,0 +1,9 @@
+interface:
+  display_name: "Cross-Platform Testing"
+  short_description: "Coordinate native Mac and Windows test handoffs"
+  icon_small: "./assets/small-logo.svg"
+  icon_large: "./assets/large-logo.svg"
+  brand_color: "#FFFFFF"
+  default_prompt: "Use $cross-platform-testing to coordinate this ThunderLink task across the Mac and Windows agents."
+policy:
+  allow_implicit_invocation: false
