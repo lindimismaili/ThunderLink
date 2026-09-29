@@ -1,5 +1,6 @@
 #include "FrameBuffer.h"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -8,6 +9,7 @@
 #include <cctype>
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <thread>
 #include <vector>
 

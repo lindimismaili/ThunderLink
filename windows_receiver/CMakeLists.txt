@@ -20,6 +20,34 @@ add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX -DUNICODE -D_UNICODE -D_WIN32_W
 # Repo root + shared cross-device log directory (logs/windows.log).
 get_filename_component(TLNK_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
 file(MAKE_DIRECTORY "${TLNK_REPO_ROOT}/logs")
+set(TLNK_UI_MANIFEST "${TLNK_REPO_ROOT}/shared_ui/dist/manifest.json")
+set(TLNK_UI_RC "${TLNK_REPO_ROOT}/shared_ui/native/windows/generated/UIAssets.rc")
+if(NOT EXISTS "${TLNK_UI_MANIFEST}" OR NOT EXISTS "${TLNK_UI_RC}")
+    message(FATAL_ERROR "Shared UI assets are missing. Run: cd shared_ui && npm ci && npm run build")
+endif()
+file(READ "${TLNK_UI_MANIFEST}" TLNK_UI_MANIFEST_JSON)
+string(JSON TLNK_UI_CONTRACT GET "${TLNK_UI_MANIFEST_JSON}" contractVersion)
+if(NOT TLNK_UI_CONTRACT EQUAL 1)
+    message(FATAL_ERROR "Unsupported shared UI contract. Rebuild shared_ui and update the native adapter together.")
+endif()
+file(GLOB_RECURSE TLNK_UI_INPUTS CONFIGURE_DEPENDS
+    "${TLNK_REPO_ROOT}/shared_ui/src/*.ts"
+    "${TLNK_REPO_ROOT}/shared_ui/src/*.css"
+    "${TLNK_REPO_ROOT}/shared_ui/contract/*.json"
+    "${TLNK_REPO_ROOT}/shared_ui/scripts/*.mjs"
+    "${TLNK_REPO_ROOT}/shared_ui/licenses/*"
+)
+list(APPEND TLNK_UI_INPUTS
+    "${TLNK_REPO_ROOT}/shared_ui/package.json"
+    "${TLNK_REPO_ROOT}/shared_ui/package-lock.json"
+    "${TLNK_REPO_ROOT}/shared_ui/vite.config.ts"
+)
+foreach(TLNK_UI_INPUT IN LISTS TLNK_UI_INPUTS)
+    if("${TLNK_UI_INPUT}" IS_NEWER_THAN "${TLNK_UI_MANIFEST}")
+        message(FATAL_ERROR "Shared UI assets are stale (${TLNK_UI_INPUT}). Run: cd shared_ui && npm ci && npm run build")
+    endif()
+endforeach()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${TLNK_UI_MANIFEST}" "${TLNK_UI_RC}")
 
 # ---------- Dependencies ----------
 
@@ -28,6 +56,23 @@ FetchContent_Declare(json
     URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
 )
 FetchContent_MakeAvailable(json)
+
+# The SDK is a build dependency only. The final app uses the installed
+# Evergreen Runtime and links the loader statically, so no loader DLL ships.
+if(NOT CMAKE_GENERATOR_PLATFORM STREQUAL "x64")
+    message(FATAL_ERROR "The pinned WebView2 SDK integration currently supports the x64 receiver build only.")
+endif()
+FetchContent_Declare(webview2_sdk
+    URL https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/1.0.4191.47
+    URL_HASH SHA256=F492BBF547D0DA329553B6727435B677579B1E9F91CC9E4A1AD029366D5F23D0
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(webview2_sdk)
+set(TLNK_WEBVIEW2_INCLUDE "${webview2_sdk_SOURCE_DIR}/build/native/include")
+set(TLNK_WEBVIEW2_LOADER "${webview2_sdk_SOURCE_DIR}/build/native/x64/WebView2LoaderStatic.lib")
+if(NOT EXISTS "${TLNK_WEBVIEW2_INCLUDE}/WebView2.h" OR NOT EXISTS "${TLNK_WEBVIEW2_LOADER}")
+    message(FATAL_ERROR "Pinned WebView2 SDK is incomplete. Clear the CMake dependency cache and retry.")
+endif()
 
 # Dear ImGui (lightweight native overlay UI). Header/source only -- no CMake of
 # its own, so we compile the core + Win32/DX12 backends into our target.
@@ -104,15 +149,17 @@ set(HEADERS
     src/Utils/PerformanceMonitor.h
 )
 
-add_executable(ThunderLinkReceiver WIN32 ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/generated/ThunderLink.rc")
+add_executable(ThunderLinkReceiver WIN32 ${SOURCES} ${HEADERS} ${IMGUI_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/generated/ThunderLink.rc" "${TLNK_UI_RC}")
 set_target_properties(ThunderLinkReceiver PROPERTIES OUTPUT_NAME ThunderLink)
 
 target_include_directories(ThunderLinkReceiver PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}/generated
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/../common
+    ${TLNK_REPO_ROOT}/shared_ui/native/windows/generated
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
+    ${TLNK_WEBVIEW2_INCLUDE}
 )
 
 target_link_libraries(ThunderLinkReceiver PRIVATE
@@ -139,6 +186,7 @@ target_link_libraries(ThunderLinkReceiver PRIVATE
     ole32
     dwmapi
     nlohmann_json::nlohmann_json
+    "${TLNK_WEBVIEW2_LOADER}"
 )
 
 if(TLNK_PORTABLE)

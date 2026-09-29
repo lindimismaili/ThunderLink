@@ -74,6 +74,7 @@ ensure_toolchain() {
 
 build_sender() {
     ensure_toolchain
+    sh "$repo/shared_ui/deploy.sh" build
     step 'Building the ThunderLink sender (debug)'
     # Plain `swift build` covers both executables: the sender and the power helper
     # it launches for closed-lid sessions.
@@ -85,7 +86,10 @@ build_sender() {
 is_up_to_date() {
     [ -x "$binary" ] || return 1
     newer=$(find "$package/Sources" "$package/PowerHelper" "$package/PowerSupport" \
-        "$package/Package.swift" -newer "$binary" -print 2>/dev/null | head -n 1 || true)
+        "$package/Package.swift" "$repo/shared_ui/src" "$repo/shared_ui/contract" \
+        "$repo/shared_ui/scripts" "$repo/shared_ui/native/Sources" \
+        "$repo/shared_ui/package.json" "$repo/shared_ui/package-lock.json" \
+        -newer "$binary" -print 2>/dev/null | head -n 1 || true)
     [ -z "$newer" ]
 }
 

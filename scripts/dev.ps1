@@ -202,6 +202,13 @@ function Test-ReceiverUpToDate {
         (Join-Path $Source 'shaders'),
         (Join-Path $Source 'CMakeLists.txt'),
         (Join-Path $Repo 'common'),
+        (Join-Path $Repo 'shared_ui/src'),
+        (Join-Path $Repo 'shared_ui/contract'),
+        (Join-Path $Repo 'shared_ui/scripts'),
+        (Join-Path $Repo 'shared_ui/native/Sources'),
+        (Join-Path $Repo 'shared_ui/package.json'),
+        (Join-Path $Repo 'shared_ui/package-lock.json'),
+        (Join-Path $Repo 'shared_ui/dist/manifest.json'),
         (Join-Path $Repo 'packaging\windows'),
         (Join-Path $Repo 'packaging\VERSION')
     )
@@ -214,6 +221,8 @@ function Test-ReceiverUpToDate {
 
 function Invoke-Build {
     Initialize-Toolchain
+    & powershell.exe -NoProfile -File (Join-Path $Repo 'shared_ui/deploy.ps1') build
+    if ($LASTEXITCODE -ne 0) { throw 'Shared UI preparation failed.' }
 
     if (-not (Test-Path -LiteralPath (Join-Path $BuildDir 'CMakeCache.txt'))) {
         Write-Step 'Configuring CMake'

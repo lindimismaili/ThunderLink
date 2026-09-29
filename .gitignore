@@ -45,3 +45,13 @@ Desktop.ini
 # Portable desktop build artifacts
 dist/
 build-portable/
+
+# Shared desktop controls (generated locally)
+.tmp/
+shared_ui/node_modules/
+shared_ui/dist/
+shared_ui/test-results/
+shared_ui/playwright-report/
+shared_ui/src/generated-validator.js
+shared_ui/native/Sources/ThunderLinkUIResources/Resources/
+shared_ui/native/windows/generated/

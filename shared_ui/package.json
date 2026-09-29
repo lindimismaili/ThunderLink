@@ -1,0 +1,25 @@
+{
+  "name": "thunderlink-shared-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "check": "node scripts/generate-validator.mjs && tsc --noEmit && node scripts/check-contract.mjs",
+    "test": "node scripts/generate-validator.mjs && vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "build": "node scripts/generate-validator.mjs && vite build && node scripts/prepare-assets.mjs && node scripts/verify-assets.mjs",
+    "preview": "vite preview --host 127.0.0.1 --strictPort"
+  },
+  "dependencies": {
+    "@fontsource/inter": "5.3.0",
+    "ajv": "8.20.0",
+    "lit": "3.3.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.1",
+    "vitest": "5.0.2"
+  }
+}

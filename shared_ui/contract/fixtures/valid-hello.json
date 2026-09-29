@@ -1,0 +1,10 @@
+{
+  "type": "hello", "version": 1, "buildId": "fixture-build", "instanceId": "fixture-instance", "role": "windows",
+  "capabilities": ["connection.connect", "connection.disconnect", "mode.set", "settings.saveRestart", "cross.layoutApply"],
+  "state": {
+    "revision": "1", "connection": { "status": "waiting", "peer": "Mac Studio" }, "mode": "screen",
+    "settings": { "revision": "1", "saved": { "videoPort": 50001 }, "effective": { "videoPort": 50001 } },
+    "cross": { "status": "disconnected", "topologyRevision": "1", "tiles": [] },
+    "diagnostics": { "protocolVersion": 4, "logs": [] }
+  }
+}

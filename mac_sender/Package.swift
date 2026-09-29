@@ -4,10 +4,11 @@ import PackageDescription
 let package = Package(
     name: "ThunderLinkSender",
     platforms: [.macOS(.v13)],
+    dependencies: [.package(path: "../shared_ui/native")],
     targets: [
         .executableTarget(
             name: "ThunderLinkSender",
-            dependencies: ["PowerSupport"],
+            dependencies: ["PowerSupport", .product(name: "ThunderLinkUIResources", package: "ThunderLinkUIResources")],
             path: "Sources",
             linkerSettings: [
                 // System frameworks for hardware capture/encode/input + UI.

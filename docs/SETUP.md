@@ -255,3 +255,12 @@ no other keep-awake tool needs it, an administrator can recover with
 `sudo /usr/bin/pmset -a disablesleep 0`. Do not assume reboot clears this setting.
 The watchdog handles app crashes/hangs; it is not a persistent boot recovery
 service. See the explicit physical acceptance checks in MAC_TESTING.md.
+
+# Shared control UI build input
+
+Native development builds now embed the generated assets from `shared_ui/`.
+Install Node 24 LTS and use the repository's npm lockfile. The native build
+wrappers prepare these assets. For a direct CMake or SwiftPM build, run
+`npm ci` and `npm run build` in `shared_ui/` first. End users do not need Node or
+npm. The Windows and Mac dashboards still use their existing native controls
+while the webview bridges are being integrated.

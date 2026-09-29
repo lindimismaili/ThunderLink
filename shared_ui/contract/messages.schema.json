@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thunderlink.invalid/ui-contract-v1",
+  "oneOf": [
+    { "$ref": "#/$defs/ready" },
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/command" },
+    { "$ref": "#/$defs/result" },
+    { "$ref": "#/$defs/state" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "revision": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,19})$" },
+    "ready": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "version", "buildId"],
+      "properties": { "type": { "const": "ready" }, "version": { "const": 1 }, "buildId": { "$ref": "#/$defs/id" } }
+    },
+    "hello": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "version", "buildId", "instanceId", "role", "capabilities", "state"],
+      "properties": {
+        "type": { "const": "hello" }, "version": { "const": 1 }, "buildId": { "$ref": "#/$defs/id" },
+        "instanceId": { "$ref": "#/$defs/id" }, "role": { "enum": ["mac", "windows"] },
+        "capabilities": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "maxItems": 64, "uniqueItems": true },
+        "state": { "$ref": "#/$defs/snapshot" }
+      }
+    },
+    "command": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "version", "instanceId", "requestId", "action", "payload"],
+      "properties": {
+        "type": { "const": "command" }, "version": { "const": 1 }, "instanceId": { "$ref": "#/$defs/id" },
+        "requestId": { "$ref": "#/$defs/id" }, "action": { "type": "string", "pattern": "^[a-z]+(?:\\.[a-z]+)+$", "maxLength": 80 },
+        "payload": { "type": "object", "maxProperties": 64 }
+      }
+    },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "version", "instanceId", "requestId", "status"],
+      "properties": {
+        "type": { "const": "result" }, "version": { "const": 1 }, "instanceId": { "$ref": "#/$defs/id" },
+        "requestId": { "$ref": "#/$defs/id" }, "status": { "enum": ["ok", "pending", "error"] },
+        "data": { "type": "object" }, "code": { "type": "string", "maxLength": 64 },
+        "message": { "type": "string", "maxLength": 2048 },
+        "fieldErrors": { "type": "object", "additionalProperties": { "type": "string", "maxLength": 512 }, "maxProperties": 64 }
+      }
+    },
+    "state": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "version", "instanceId", "state"],
+      "properties": {
+        "type": { "const": "state" }, "version": { "const": 1 }, "instanceId": { "$ref": "#/$defs/id" },
+        "state": { "$ref": "#/$defs/snapshot" }
+      }
+    },
+    "settingsValues": {
+      "type": "object", "maxProperties": 64,
+      "propertyNames": { "type": "string", "maxLength": 64 },
+      "additionalProperties": { "oneOf": [{ "type": "string", "maxLength": 1024 }, { "type": "number", "minimum": -1000000000, "maximum": 1000000000 }, { "type": "boolean" }] }
+    },
+    "peer": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name"],
+      "properties": { "id": { "type": "string", "minLength": 1, "maxLength": 256 }, "name": { "type": "string", "maxLength": 256 } }
+    },
+    "tile": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "owner", "x", "y", "width", "height"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 }, "name": { "type": "string", "maxLength": 256 }, "owner": { "enum": ["mac", "windows"] },
+        "x": { "type": "number", "minimum": -10000000, "maximum": 10000000 }, "y": { "type": "number", "minimum": -10000000, "maximum": 10000000 },
+        "width": { "type": "number", "minimum": 1, "maximum": 1000000 }, "height": { "type": "number", "minimum": 1, "maximum": 1000000 }, "missing": { "type": "boolean" }
+      }
+    },
+    "snapshot": {
+      "type": "object", "additionalProperties": false,
+      "required": ["revision", "connection", "mode", "settings", "diagnostics", "cross"],
+      "properties": {
+        "revision": { "$ref": "#/$defs/revision" },
+        "connection": { "type": "object", "additionalProperties": false, "required": ["status"], "properties": {
+          "status": { "enum": ["disconnected", "waiting", "preparing", "streaming", "error"] },
+          "peer": { "type": "string", "maxLength": 256 }, "error": { "type": "string", "maxLength": 2048 },
+          "width": { "type": "integer", "minimum": 1, "maximum": 3840 }, "height": { "type": "integer", "minimum": 1, "maximum": 2160 },
+          "fps": { "type": "integer", "minimum": 1, "maximum": 240 }, "codec": { "type": "string", "maxLength": 16 },
+          "bitrateMbps": { "type": "number", "minimum": 0, "maximum": 200 }
+        } },
+        "mode": { "enum": ["screen", "cross"] },
+        "settings": { "type": "object", "additionalProperties": false, "required": ["revision", "saved", "effective"], "properties": {
+          "revision": { "$ref": "#/$defs/revision" }, "saved": { "$ref": "#/$defs/settingsValues" }, "effective": { "$ref": "#/$defs/settingsValues" },
+          "displays": { "type": "array", "maxItems": 64, "items": { "type": "object", "additionalProperties": false, "required": ["id", "label", "available"], "properties": { "id": { "type": "string", "maxLength": 256 }, "label": { "type": "string", "maxLength": 256 }, "available": { "type": "boolean" } } } }
+        } },
+        "permissions": { "type": "object", "additionalProperties": false, "properties": { "screenRecording": { "type": "string", "maxLength": 128 }, "accessibility": { "type": "string", "maxLength": 128 }, "keepAwake": { "type": "boolean" }, "lid": { "type": "string", "maxLength": 256 } } },
+        "cross": { "type": "object", "additionalProperties": false, "properties": {
+          "status": { "type": "string", "maxLength": 128 }, "peerId": { "type": "string", "maxLength": 256 }, "peerName": { "type": "string", "maxLength": 256 },
+          "pairingCode": { "type": "string", "maxLength": 64 }, "pairingAttempt": { "type": "string", "maxLength": 128 },
+          "discovered": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/peer" } },
+          "paired": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/peer" } },
+          "enabled": { "type": "boolean" }, "route": { "type": "string", "maxLength": 256 },
+          "latencyMs": { "type": "number", "minimum": 0, "maximum": 1000000 }, "destination": { "type": "string", "maxLength": 32 },
+          "topologyRevision": { "$ref": "#/$defs/revision" }, "tiles": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/tile" } },
+          "error": { "type": "string", "maxLength": 2048 }
+        } },
+        "diagnostics": { "type": "object", "additionalProperties": false, "properties": {
+          "protocolVersion": { "type": "integer", "minimum": 1, "maximum": 1000 },
+          "logs": { "type": "array", "maxItems": 1000, "items": { "type": "string", "maxLength": 2048 } },
+          "endpoints": { "type": "array", "maxItems": 16, "items": { "type": "string", "maxLength": 256 } },
+          "metrics": { "type": "object", "maxProperties": 64, "propertyNames": { "maxLength": 128 }, "additionalProperties": { "oneOf": [{ "type": "string", "maxLength": 512 }, { "type": "number" }] } },
+          "truncated": { "type": "boolean" }
+        } }
+      }
+    }
+  }
+}

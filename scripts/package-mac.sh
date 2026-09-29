@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 [ "$(uname -m)" = arm64 ] || { echo 'This release targets Apple Silicon.' >&2; exit 1; }
 version=$(cat packaging/VERSION)
 case "$version" in *[!0-9.]*|'') echo 'Invalid packaging version' >&2; exit 1;; esac
+sh ./shared_ui/deploy.sh build
 swift build --package-path mac_sender -c release --arch arm64
 binary_dir=$(swift build --package-path mac_sender -c release --arch arm64 --show-bin-path)
 staging=$(mktemp -d "${TMPDIR:-/tmp}/thunderlink-package.XXXXXX")
@@ -15,6 +16,13 @@ cp "$binary_dir/ThunderLinkSender" "$app/Contents/MacOS/ThunderLink"
 cp "$binary_dir/ThunderLinkPowerHelper" "$app/Contents/MacOS/ThunderLinkPowerHelper"
 cp packaging/ThunderLink.icns "$app/Contents/Resources/ThunderLink.icns"
 cp packaging/licenses/THIRD-PARTY-NOTICES.txt "$app/Contents/Resources/"
+cp shared_ui/licenses/Inter-OFL.txt "$app/Contents/Resources/"
+cp shared_ui/licenses/Lit-BSD-3-Clause.txt "$app/Contents/Resources/"
+cp shared_ui/dist/manifest.json "$app/Contents/Resources/ui-manifest.json"
+cp packaging/VERSION "$app/Contents/Resources/VERSION"
+ui_bundle=$(find "$binary_dir" -maxdepth 1 -type d -name '*ThunderLinkUIResources*.bundle' -print -quit)
+[ -n "$ui_bundle" ] || { echo 'Shared UI SwiftPM resource bundle missing. Rebuild shared_ui first.' >&2; exit 1; }
+cp -R "$ui_bundle" "$app/Contents/Resources/"
 sed "s/@VERSION@/$version/g" packaging/macos/Info.plist.in > "$app/Contents/Info.plist"
 plutil -lint "$app/Contents/Info.plist"
 # macOS 13 provides Swift and all linked Apple frameworks. Reject accidental

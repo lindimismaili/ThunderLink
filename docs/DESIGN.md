@@ -76,12 +76,22 @@
 
 ## Dark Studio Desktop System
 
+The shared control UI under `shared_ui/` uses
+[`src/styles.css`](../shared_ui/src/styles.css) as its token and component style
+source. Its [Lit components](../shared_ui/src/app.ts) render the same control
+layout on both platforms and expose role-specific actions from native
+capabilities. The D3D12 video viewer keeps its compact native overlay. During
+the migration, the existing SwiftUI and ImGui dashboards remain active until
+their native webview bridges pass the parity and safety checks in
+[`UI_UPDATE_PLAN.md`](../UI_UPDATE_PLAN.md).
+
 Both platforms share a deliberate dark appearance independent of the OS theme.
 Use background `#0E1117`, surface `#171B24`, primary text `#E8EDF7`, muted text
 `#99A6BD`, and accent `#5791FF`. Use green for successful permissions, amber for
 requirements/errors, and always pair status color with text or an icon.
 
-Use native system typography (Mac system font / Windows Segoe UI), 13–17 point
+The shared controls use locally bundled Inter; the current native dashboards use
+system typography (Mac system font / Windows Segoe UI). Use 13–17 point
 body/control text, 24–28 point page headings, and small uppercase section labels.
 Keep a roughly 200-point sidebar, 24–32 point content padding, 8-point spacing
 increments, and 10–14 point corner radii. Scroll content at small sizes; never

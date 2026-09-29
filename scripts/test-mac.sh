@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/.."
+sh ./shared_ui/deploy.sh build
 # Swift 6.4 CLT ships Testing but swiftbuild does not discover its macro plugin.
 # Full Xcode and other toolchains use SwiftPM's ordinary discovery.
 developer_dir=$(xcode-select -p)

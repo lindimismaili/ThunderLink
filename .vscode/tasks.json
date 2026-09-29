@@ -15,6 +15,54 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Build & Preview",
+            "detail": "Build the shared local UI, then preview it on the saved loopback port.",
+            "type": "process",
+            "command": "/bin/sh",
+            "args": ["${workspaceFolder}${/}shared_ui${/}deploy.sh", "build-preview"],
+            "windows": { "command": "powershell.exe", "args": ["-NoProfile", "-File", "${workspaceFolder}${/}shared_ui${/}deploy.ps1", "build-preview"] },
+            "options": { "cwd": "${workspaceFolder}${/}shared_ui" },
+            "problemMatcher": [], "inAgents": true,
+            "icon": { "id": "rocket", "color": "terminal.ansiCyan" },
+            "runOptions": { "instanceLimit": 1, "instancePolicy": "terminateOldest", "reevaluateOnRerun": true },
+            "presentation": { "panel": "dedicated", "clear": true }
+        },
+        {
+            "label": "Preview",
+            "detail": "Preview the last production UI build without rebuilding.",
+            "type": "process",
+            "command": "/bin/sh",
+            "args": ["${workspaceFolder}${/}shared_ui${/}deploy.sh", "preview"],
+            "windows": { "command": "powershell.exe", "args": ["-NoProfile", "-File", "${workspaceFolder}${/}shared_ui${/}deploy.ps1", "preview"] },
+            "options": { "cwd": "${workspaceFolder}${/}shared_ui" },
+            "problemMatcher": [], "inAgents": true,
+            "icon": { "id": "play-circle", "color": "terminal.ansiCyan" },
+            "runOptions": { "instanceLimit": 1, "instancePolicy": "terminateOldest", "reevaluateOnRerun": true },
+            "presentation": { "panel": "dedicated", "clear": true }
+        },
+        {
+            "label": "Clear",
+            "detail": "Remove only generated shared UI outputs.",
+            "type": "process",
+            "command": "/bin/sh",
+            "args": ["${workspaceFolder}${/}shared_ui${/}deploy.sh", "clear-build"],
+            "windows": { "command": "powershell.exe", "args": ["-NoProfile", "-File", "${workspaceFolder}${/}shared_ui${/}deploy.ps1", "clear-build"] },
+            "options": { "cwd": "${workspaceFolder}${/}shared_ui" },
+            "problemMatcher": [], "inAgents": true,
+            "icon": { "id": "trash", "color": "terminal.ansiYellow" }
+        },
+        {
+            "label": "Reset",
+            "detail": "Remove generated shared UI outputs and its local npm installation.",
+            "type": "process",
+            "command": "/bin/sh",
+            "args": ["${workspaceFolder}${/}shared_ui${/}deploy.sh", "reset"],
+            "windows": { "command": "powershell.exe", "args": ["-NoProfile", "-File", "${workspaceFolder}${/}shared_ui${/}deploy.ps1", "reset"] },
+            "options": { "cwd": "${workspaceFolder}${/}shared_ui" },
+            "problemMatcher": [], "inAgents": true,
+            "icon": { "id": "debug-restart", "color": "terminal.ansiMagenta" }
+        },
+        {
             "label": "Build",
             "detail": "Check/install dependencies, then build this machine's ThunderLink app (Windows receiver or Mac sender).",
             "type": "process",
